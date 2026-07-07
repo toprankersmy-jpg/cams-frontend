@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getUnreadCount, createTask, getAllCentres, getUsersByRole } from '../api';
+import { getUnreadCount, createTask, getAllCentres, getUsersByRole, getResolvedPermissionsMe } from '../api';
 import { 
   LayoutDashboard, 
   CheckSquare, 
@@ -39,12 +39,20 @@ export default function Layout() {
   const [taskPriority, setTaskPriority] = useState('Medium');
   const [taskDueDate, setTaskDueDate] = useState('');
   const [taskAssignedTo, setTaskAssignedTo] = useState('');
+  const [taskType, setTaskType] = useState('');
+  const [taskDepartment, setTaskDepartment] = useState('');
 
   // Fetch unread notifications count
   const { data: unreadData } = useQuery({
     queryKey: ['unreadCount'],
     queryFn: getUnreadCount,
     refetchInterval: 15000, // Poll every 15 seconds
+    enabled: !!user,
+  });
+
+  const { data: myPermissions } = useQuery({
+    queryKey: ['myPermissions'],
+    queryFn: getResolvedPermissionsMe,
     enabled: !!user,
   });
 
@@ -73,6 +81,8 @@ export default function Layout() {
       setTaskPriority('Medium');
       setTaskDueDate('');
       setTaskAssignedTo('');
+      setTaskType('');
+      setTaskDepartment('');
       alert('Task created successfully!');
     },
     onError: (err) => {
@@ -85,63 +95,49 @@ export default function Layout() {
 
   const handleCreateTask = (e) => {
     e.preventDefault();
-    if (!taskTitle || !taskCentre || !taskDueDate) {
+    if (!taskTitle || !taskType || !taskDepartment || !taskCentre || !taskDueDate) {
       alert('Please fill out all required fields');
       return;
     }
     createTaskMutation.mutate({
       title: taskTitle,
-      description: taskDesc,
-      centre_id: taskCentre,
-      priority: taskPriority,
-      due_date: taskDueDate,
-      assigned_to: taskAssignedTo || undefined,
-      target_type: 'centre',
+      task_type: taskType,
+      target_type: 'specific_centre',
+      department: taskDepartment,
+      description: taskDesc || undefined,
+      target_centre_id: taskCentre || undefined,
+      proposed_priority: taskPriority || undefined,
+      initiator_due_date: taskDueDate || undefined,
+      assigned_centre_executive: taskAssignedTo || undefined,
     });
   };
 
   const role = user?.role || 'hq_executive';
 
-  // Navigation mapping per role
-  const navConfig = {
-    hq_executive: [
-      { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-      { label: 'My Tasks', path: '/tasks/my', icon: CheckSquare },
-      { label: 'All Tasks', path: '/tasks/all', icon: ListTodo },
-      { label: 'Centres', path: '/centres', icon: Building2 },
-    ],
-    hq_manager: [
-      { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-      { label: 'Pending Approval', path: '/tasks/pending', icon: Clock },
-      { label: 'My Department', path: '/department', icon: FolderLock },
-      { label: 'Centres', path: '/centres', icon: Building2 },
-    ],
-    rm: [
-      { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-      { label: 'Set Priority', path: '/priority', icon: Target },
-      { label: 'My Region', path: '/region', icon: MapPin },
-      { label: 'Centres', path: '/centres', icon: Building2 },
-    ],
-    centre_head: [
-      { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-      { label: 'My Basket', path: '/basket', icon: Inbox },
-      { label: 'Kanban Board', path: '/kanban', icon: LayoutDashboard },
-      { label: 'Delegate Task', path: '/delegate', icon: UserPlus },
-    ],
-    centre_executive: [
-      { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-      { label: 'My Assigned', path: '/assigned', icon: UserCheck },
-      { label: 'Kanban Board', path: '/kanban', icon: LayoutDashboard },
-    ],
-    leadership: [
-      { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-      { label: 'All Centres', path: '/centres', icon: Building2 },
-      { label: 'All Tasks', path: '/tasks/all', icon: ListTodo },
-      { label: 'Reports', path: '/reports', icon: BarChart3 },
-    ]
-  };
+  // Navigation mapping dynamically filtered by permissions
+  const fullNavConfig = [
+    { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, permissionKey: 'page:dashboard' },
+    { label: 'My Tasks', path: '/tasks/my', icon: CheckSquare, permissionKey: 'page:tasks_my' },
+    { label: 'All Tasks', path: '/tasks/all', icon: ListTodo, permissionKey: 'page:tasks_all' },
+    { label: 'Pending Approval', path: '/tasks/pending', icon: Clock, permissionKey: 'page:tasks_pending' },
+    { label: 'My Department', path: '/department', icon: FolderLock, permissionKey: 'page:department' },
+    { label: 'Set Priority', path: '/priority', icon: Target, permissionKey: 'page:priority' },
+    { label: 'My Region', path: '/region', icon: MapPin, permissionKey: 'page:region' },
+    { label: 'My Basket', path: '/basket', icon: Inbox, permissionKey: 'page:basket' },
+    { label: 'Kanban Board', path: '/kanban', icon: LayoutDashboard, permissionKey: 'page:kanban' },
+    { label: 'Delegate Task', path: '/delegate', icon: UserPlus, permissionKey: 'page:delegate' },
+    { label: 'My Assigned', path: '/assigned', icon: UserCheck, permissionKey: 'page:assigned' },
+    { label: 'Centres', path: '/centres', icon: Building2, permissionKey: 'page:centres' },
+    { label: 'Reports', path: '/reports', icon: BarChart3, permissionKey: 'page:reports' },
+    { label: 'Admin Panel', path: '/admin', icon: FolderLock, permissionKey: 'page:admin' },
+  ];
 
-  const navItems = navConfig[role] || navConfig.hq_executive;
+  const navItems = fullNavConfig.filter(item => {
+    if (user?.is_admin) return true;
+    if (item.permissionKey === 'page:admin') return false;
+    if (!myPermissions) return false;
+    return !!myPermissions[item.permissionKey];
+  });
 
   // Resolve dynamic header titles
   const pathTitles = {
@@ -157,7 +153,8 @@ export default function Layout() {
     '/kanban': 'Kanban Task Board',
     '/delegate': 'Delegate Centre Tasks',
     '/assigned': 'Assigned Centre Tasks',
-    '/reports': 'Performance & Analytical Reports'
+    '/reports': 'Performance & Analytical Reports',
+    '/admin': 'CAMS Administrative Command Center'
   };
 
   const pageTitle = pathTitles[location.pathname] || 'Centre Activity Management';
@@ -319,6 +316,32 @@ export default function Layout() {
                   onChange={(e) => setTaskDesc(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-400"
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Task Type *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Maintenance, IT, Audit"
+                    value={taskType}
+                    onChange={(e) => setTaskType(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Department *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Operations, Finance"
+                    value={taskDepartment}
+                    onChange={(e) => setTaskDepartment(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-400"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">

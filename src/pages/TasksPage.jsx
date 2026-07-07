@@ -20,9 +20,8 @@ const getPriorityBadge = (priority) => {
 
 const getStatusBadge = (status) => {
   const styles = {
-    draft: 'bg-slate-50 text-slate-600 border-slate-200',
-    pending_approval: 'bg-amber-50 text-amber-700 border-amber-200',
-    active: 'bg-blue-50 text-blue-700 border-blue-200',
+    pending_manager_approval: 'bg-amber-50 text-amber-700 border-amber-200',
+    active_in_ch_basket: 'bg-blue-50 text-blue-700 border-blue-200',
     acknowledged: 'bg-indigo-50 text-indigo-700 border-indigo-200',
     in_progress: 'bg-violet-50 text-violet-700 border-violet-200',
     completed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -31,12 +30,27 @@ const getStatusBadge = (status) => {
     blocked: 'bg-orange-50 text-orange-700 border-orange-200',
     reopened: 'bg-cyan-50 text-cyan-700 border-cyan-200',
   };
-  const label = status ? status.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : 'Unknown';
+  const label = status ? status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : 'Unknown';
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${styles[status] || 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${styles[status] || 'bg-slate-50 text-slate-650 border-slate-200'}`}>
       {label}
     </span>
   );
+};
+
+const getTaskDueDate = (t, role) => {
+  if (!t) return null;
+  let rawDate;
+  if (role === 'rm' || role === 'centre_head' || role === 'centre_executive') {
+    rawDate = t.rm_due_date || t.manager_due_date || t.initiator_due_date || t.due_date || t.dueDate;
+  } else if (role === 'hq_manager') {
+    rawDate = t.manager_due_date || t.initiator_due_date || t.due_date || t.dueDate;
+  } else if (role === 'hq_executive') {
+    rawDate = t.initiator_due_date || t.due_date || t.dueDate;
+  } else {
+    rawDate = t.rm_due_date || t.manager_due_date || t.initiator_due_date || t.due_date || t.dueDate;
+  }
+  return rawDate ? new Date(rawDate) : null;
 };
 
 const SkeletonRow = () => (
@@ -108,16 +122,14 @@ export default function TasksPage() {
           className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-600"
         >
           <option value="all">All Statuses</option>
-          <option value="draft">Draft</option>
-          <option value="pending_approval">Pending Approval</option>
-          <option value="active">Active</option>
+          <option value="pending_manager_approval">Pending Manager Approval</option>
+          <option value="active_in_ch_basket">Active in CH Basket</option>
           <option value="acknowledged">Acknowledged</option>
           <option value="in_progress">In Progress</option>
           <option value="completed">Completed</option>
           <option value="closed">Closed</option>
           <option value="rejected">Rejected</option>
           <option value="blocked">Blocked</option>
-          <option value="reopened">Reopened</option>
         </select>
         <select
           value={priorityFilter}
@@ -163,7 +175,7 @@ export default function TasksPage() {
                     <td className="py-3.5 px-6">{getPriorityBadge(t.priority)}</td>
                     <td className="py-3.5 px-6">{getStatusBadge(t.status)}</td>
                     <td className="py-3.5 px-6 text-slate-500">
-                      {t.due_date || t.dueDate ? new Date(t.due_date || t.dueDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                      {getTaskDueDate(t, user?.role) ? getTaskDueDate(t, user?.role).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
                     </td>
                     <td className="py-3.5 px-6 text-right">
                       <button

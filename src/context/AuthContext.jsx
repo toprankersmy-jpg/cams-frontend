@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { getMe } from '../api';
+import { getMe, login as apiLogin } from '../api';
 
 const AuthContext = createContext(null);
 
@@ -47,9 +47,9 @@ export const AuthProvider = ({ children }) => {
 
   const handleLogin = async (newToken) => {
     setLoading(true);
-    localStorage.setItem('cams_token', newToken);
 
     if (newToken && newToken.startsWith('mock-token-')) {
+      localStorage.setItem('cams_token', newToken);
       const role = newToken.replace('mock-token-', '');
       const mockUser = {
         id: 'mock-user-123',
@@ -63,8 +63,13 @@ export const AuthProvider = ({ children }) => {
       return;
     }
 
-    setToken(newToken);
     try {
+      const authData = await apiLogin({ token: newToken });
+      const camsToken = authData.token;
+      
+      localStorage.setItem('cams_token', camsToken);
+      setToken(camsToken);
+
       const data = await getMe();
       setUser(data.user || data);
     } catch (error) {

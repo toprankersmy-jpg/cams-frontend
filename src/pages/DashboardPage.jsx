@@ -60,7 +60,7 @@ export default function DashboardPage() {
 
   // Add Comment Mutation
   const addCommentMutation = useMutation({
-    mutationFn: ({ taskId, text }) => addComment(taskId, { text }),
+    mutationFn: ({ taskId, text }) => addComment(taskId, text),
     onSuccess: () => {
       setNewCommentText('');
       refetchComments();
@@ -73,7 +73,7 @@ export default function DashboardPage() {
 
   // Update Status Mutation
   const updateStatusMutation = useMutation({
-    mutationFn: ({ taskId, status }) => updateTaskStatus(taskId, { status }),
+    mutationFn: ({ taskId, ...data }) => updateTaskStatus(taskId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['taskStats'] });
       queryClient.invalidateQueries({ queryKey: ['myTasks'] });
@@ -81,7 +81,7 @@ export default function DashboardPage() {
       alert('Status updated successfully!');
     },
     onError: (err) => {
-      alert(!err.response ? 'Server still waking up — try again in 30 seconds.' : 'Failed to update status.');
+      alert(!err.response ? 'Server still waking up — try again in 30 seconds.' : (err.response?.data?.error || 'Failed to update status.'));
     }
   });
 
@@ -92,7 +92,21 @@ export default function DashboardPage() {
   };
 
   const handleStatusChange = (status) => {
-    updateStatusMutation.mutate({ taskId: selectedTaskId, status });
+    let payload = { status };
+    if (status === 'reopened') {
+      const reason = prompt('Please enter a reopen reason:');
+      if (!reason) return;
+      payload.reopen_reason = reason;
+    } else if (status === 'rejected') {
+      const reason = prompt('Please enter a rejection reason (optional):');
+      if (reason === null) return;
+      payload.rejection_reason = reason || undefined;
+    } else if (status === 'in_progress' && user?.role === 'rm' && taskDetails?.status === 'active_in_ch_basket') {
+      const fp = prompt('Please enter final priority (Low, Medium, High, Critical) or leave empty:', taskDetails?.priority || '');
+      if (fp === null) return; // user cancelled
+      if (fp) payload.final_priority = fp;
+    }
+    updateStatusMutation.mutate({ taskId: selectedTaskId, ...payload });
   };
 
   // Mock fallbacks if server isn't reachable
@@ -143,7 +157,12 @@ export default function DashboardPage() {
   ];
 
   const isBackendDown = !!(statsError || tasksError);
-  const activeStats = stats || mockStats;
+  const activeStats = stats ? {
+    open: (stats.active_in_ch_basket || 0) + (stats.acknowledged || 0) + (stats.in_progress || 0) + (stats.blocked || 0),
+    overdue: stats.overdue || 0,
+    completed: stats.completed || 0,
+    pendingApproval: stats.pending_manager_approval || 0
+  } : mockStats;
   const rawTasks = tasks;
   const activeTasks = Array.isArray(rawTasks) ? rawTasks : (rawTasks?.tasks || rawTasks?.data || mockTasks);
 
@@ -173,14 +192,20 @@ export default function DashboardPage() {
   // Status Badge UI
   const getStatusBadge = (status) => {
     const styles = {
-      'Open': 'bg-indigo-50 text-indigo-700 border-indigo-200',
-      'Pending Approval': 'bg-amber-50 text-amber-700 border-amber-200',
-      'Completed': 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      'Overdue': 'bg-rose-50 text-rose-700 border-rose-200',
+      pending_manager_approval: 'bg-amber-50 text-amber-700 border-amber-200',
+      active_in_ch_basket: 'bg-blue-50 text-blue-700 border-blue-200',
+      acknowledged: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+      in_progress: 'bg-violet-50 text-violet-700 border-violet-200',
+      completed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      closed: 'bg-gray-50 text-gray-600 border-gray-200',
+      rejected: 'bg-red-50 text-red-700 border-red-200',
+      blocked: 'bg-orange-50 text-orange-700 border-orange-200',
+      reopened: 'bg-cyan-50 text-cyan-700 border-cyan-200',
     };
+    const label = status ? status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : 'Unknown';
     return (
       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${styles[status] || 'bg-slate-50 text-slate-700 border-slate-200'}`}>
-        {status}
+        {label}
       </span>
     );
   };
@@ -198,6 +223,57 @@ export default function DashboardPage() {
         {priority}
       </span>
     );
+  };
+
+  const getTaskDueDate = (t) => {
+    if (!t) return null;
+    const role = user?.role;
+    let rawDate;
+    if (role === 'rm' || role === 'centre_head' || role === 'centre_executive') {
+      rawDate = t.rm_due_date || t.manager_due_date || t.initiator_due_date || t.due_date || t.dueDate;
+    } else if (role === 'hq_manager') {
+      rawDate = t.manager_due_date || t.initiator_due_date || t.due_date || t.dueDate;
+    } else if (role === 'hq_executive') {
+      rawDate = t.initiator_due_date || t.due_date || t.dueDate;
+    } else {
+      rawDate = t.rm_due_date || t.manager_due_date || t.initiator_due_date || t.due_date || t.dueDate;
+    }
+    return rawDate ? new Date(rawDate) : null;
+  };
+
+  const getTransitions = (status, role) => {
+    const list = [];
+    if (role === 'hq_manager') {
+      if (status === 'pending_manager_approval') {
+        list.push({ status: 'active_in_ch_basket', label: 'Approve' });
+        list.push({ status: 'rejected', label: 'Reject' });
+      }
+    } else if (role === 'rm') {
+      if (status === 'active_in_ch_basket') {
+        list.push({ status: 'in_progress', label: 'Start Task' });
+        list.push({ status: 'rejected', label: 'Reject' });
+      } else if (status === 'completed' || status === 'closed') {
+        list.push({ status: 'reopened', label: 'Reopen' });
+      }
+    } else if (role === 'centre_head') {
+      if (status === 'active_in_ch_basket') {
+        list.push({ status: 'acknowledged', label: 'Acknowledge' });
+      } else if (status === 'acknowledged') {
+        list.push({ status: 'in_progress', label: 'Start Work' });
+      } else if (status === 'in_progress') {
+        list.push({ status: 'completed', label: 'Mark Completed' });
+        list.push({ status: 'blocked', label: 'Mark Blocked' });
+      }
+    } else if (role === 'centre_executive') {
+      if (status === 'in_progress') {
+        list.push({ status: 'completed', label: 'Mark Completed' });
+      }
+    } else if (role === 'leadership' || role === 'hq_executive') {
+      if (status === 'completed' || status === 'closed') {
+        list.push({ status: 'reopened', label: 'Reopen' });
+      }
+    }
+    return list;
   };
 
   return (
@@ -304,11 +380,11 @@ export default function DashboardPage() {
                     {getStatusBadge(t.status)}
                   </td>
                   <td className="py-3.5 px-6 text-slate-500 font-medium">
-                    {new Date(t.dueDate).toLocaleDateString(undefined, {
+                    {getTaskDueDate(t) ? getTaskDueDate(t).toLocaleDateString(undefined, {
                       month: 'short',
                       day: 'numeric',
                       year: 'numeric'
-                    })}
+                    }) : '—'}
                   </td>
                   <td className="py-3.5 px-6 text-right">
                     <button
@@ -379,7 +455,7 @@ export default function DashboardPage() {
                   <span className="text-slate-400 font-semibold">Due Date</span>
                   <span className="font-semibold text-slate-700 flex items-center gap-1">
                     <Calendar size={14} className="text-slate-400" />
-                    {taskDetails?.dueDate ? new Date(taskDetails.dueDate).toLocaleDateString() : 'N/A'}
+                    {getTaskDueDate(taskDetails) ? getTaskDueDate(taskDetails).toLocaleDateString() : 'N/A'}
                   </span>
                 </div>
               </div>
@@ -395,20 +471,19 @@ export default function DashboardPage() {
               {/* Action: Update Task Status */}
               <div className="space-y-2">
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Modify Operations Status</h4>
-                <div className="grid grid-cols-3 gap-2">
-                  {['Open', 'Pending Approval', 'Completed'].map((statusOption) => (
+                <div className="flex flex-wrap gap-2">
+                  {getTransitions(taskDetails?.status, user?.role).map((t) => (
                     <button
-                      key={statusOption}
-                      onClick={() => handleStatusChange(statusOption)}
-                      className={`px-3 py-1.5 border rounded-lg text-xs font-semibold cursor-pointer text-center transition-all ${
-                        taskDetails?.status === statusOption
-                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                          : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-600'
-                      }`}
+                      key={t.status}
+                      onClick={() => handleStatusChange(t.status)}
+                      className="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-xs font-semibold cursor-pointer text-center transition-all hover:border-indigo-500 hover:text-indigo-650"
                     >
-                      {statusOption}
+                      {t.label}
                     </button>
                   ))}
+                  {getTransitions(taskDetails?.status, user?.role).length === 0 && (
+                    <span className="text-xs text-slate-400 italic">No actions available for your role.</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -422,18 +497,18 @@ export default function DashboardPage() {
 
               {/* List Comments */}
               <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1">
-                {comments?.map((comment) => (
+                 {comments?.map((comment) => (
                   <div key={comment._id || comment.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-bold text-slate-800 flex items-center gap-1">
                         <User size={12} className="text-slate-400" />
-                        {comment.user?.name || 'Centre Officer'}
+                        {comment.commented_by?.name || 'Centre Officer'}
                       </span>
                       <span className="text-[10px] text-slate-400">
-                        {new Date(comment.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {comment.created_at ? new Date(comment.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-600 leading-normal">{comment.text}</p>
+                    <p className="text-xs text-slate-600 leading-normal">{comment.comment}</p>
                   </div>
                 ))}
 
