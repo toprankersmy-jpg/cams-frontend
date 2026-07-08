@@ -162,61 +162,59 @@ export default function Layout() {
   return (
     <div className="flex h-screen bg-[#F8FAFC] text-slate-800 font-sans overflow-hidden">
       {/* Sidebar */}
-      <aside className="w-[220px] bg-white border-r border-slate-200 flex flex-col justify-between h-full z-10">
-        <div>
-          {/* Logo */}
-          <div className="p-6 border-b border-slate-100 flex items-center gap-3">
-            <div className="bg-indigo-600 p-2 rounded-lg text-white">
-              <Briefcase size={20} />
-            </div>
-            <div>
-              <h1 className="font-bold text-lg tracking-tight text-slate-900 leading-none">CAMS</h1>
-              <span className="text-[10px] text-slate-400 font-medium tracking-wider uppercase">Rankers Portal</span>
-            </div>
+      <aside className="w-[220px] bg-white border-r border-slate-200 flex flex-col h-full z-10 overflow-hidden">
+        {/* Logo */}
+        <div className="p-6 border-b border-slate-100 flex items-center gap-3 shrink-0">
+          <div className="bg-indigo-600 p-2 rounded-lg text-white">
+            <Briefcase size={20} />
           </div>
-
-          {/* User Profile */}
-          {user && (
-            <div className="p-4 border-b border-slate-100 bg-slate-50/50">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-semibold uppercase shadow-sm">
-                  {user.name ? user.name.slice(0, 2) : 'US'}
-                </div>
-                <div className="overflow-hidden">
-                  <h3 className="font-semibold text-sm text-slate-800 truncate leading-tight">{user.name || 'User Profile'}</h3>
-                  <span className="inline-block mt-1 text-[10px] px-2 py-0.5 rounded-full font-bold bg-indigo-100 text-indigo-700 tracking-wide uppercase border border-indigo-200">
-                    {role.replace('_', ' ')}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Nav List */}
-          <nav className="p-4 space-y-1">
-            {navItems.map((item) => {
-              const IconComponent = item.icon;
-              const isActive = location.pathname === item.path;
-              return (
-                <Link
-                  key={item.label}
-                  to={item.path}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                    isActive
-                      ? 'bg-indigo-50 text-indigo-600 font-semibold border-l-4 border-indigo-600 pl-2 rounded-l-none'
-                      : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
-                  }`}
-                >
-                  <IconComponent size={18} className={isActive ? 'text-indigo-600' : 'text-slate-400'} />
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
-          </nav>
+          <div>
+            <h1 className="font-bold text-lg tracking-tight text-slate-900 leading-none">CAMS</h1>
+            <span className="text-[10px] text-slate-400 font-medium tracking-wider uppercase">Rankers Portal</span>
+          </div>
         </div>
 
+        {/* User Profile */}
+        {user && (
+          <div className="p-4 border-b border-slate-100 bg-slate-50/50 shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-semibold uppercase shadow-sm">
+                {user.name ? user.name.slice(0, 2) : 'US'}
+              </div>
+              <div className="overflow-hidden">
+                <h3 className="font-semibold text-sm text-slate-800 truncate leading-tight">{user.name || 'User Profile'}</h3>
+                <span className="inline-block mt-1 text-[10px] px-2 py-0.5 rounded-full font-bold bg-indigo-100 text-indigo-700 tracking-wide uppercase border border-indigo-200">
+                  {role.replace('_', ' ')}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Nav List - scrolls independently when it overflows */}
+        <nav className="flex-1 min-h-0 overflow-y-auto p-4 space-y-1">
+          {navItems.map((item) => {
+            const IconComponent = item.icon;
+            const isActive = location.pathname === item.path;
+            return (
+              <Link
+                key={item.label}
+                to={item.path}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  isActive
+                    ? 'bg-indigo-50 text-indigo-600 font-semibold border-l-4 border-indigo-600 pl-2 rounded-l-none'
+                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+                }`}
+              >
+                <IconComponent size={18} className={isActive ? 'text-indigo-600' : 'text-slate-400'} />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+
         {/* Sidebar Footer (Notifications & Logout) */}
-        <div className="p-4 border-t border-slate-100 space-y-2">
+        <div className="p-4 border-t border-slate-100 space-y-2 shrink-0">
           {/* Notifications Bell */}
           <Link
             to="/notifications"
