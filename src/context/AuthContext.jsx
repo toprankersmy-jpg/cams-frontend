@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { getMe, login as apiLogin } from '../api';
-import { msalInstance } from '../auth/msalConfig';
 
 const AuthContext = createContext(null);
 
@@ -19,44 +18,18 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem('cams_token'));
   const [loading, setLoading] = useState(true);
 
-  const exchangeAzureToken = async (azureIdToken) => {
-    const authData = await apiLogin({ token: azureIdToken });
-    const camsToken = authData.token;
-    localStorage.setItem('cams_token', camsToken);
-    setToken(camsToken);
-    const data = await getMe();
-    setUser(data.user || data);
-  };
-
-  // Runs once on mount. First checks whether the browser just landed back
-  // here from a Microsoft redirect login (loginRedirect, not a popup), and
-  // only falls back to an existing stored session if it didn't.
   useEffect(() => {
-    const bootstrap = async () => {
-      try {
-        const redirectResponse = await msalInstance.handleRedirectPromise();
-        if (redirectResponse && redirectResponse.idToken) {
-          await exchangeAzureToken(redirectResponse.idToken);
-          setLoading(false);
-          return;
-        }
-      } catch (error) {
-        console.error('Azure redirect login failed:', error);
-      }
-
-      const existingToken = localStorage.getItem('cams_token');
-      if (!existingToken) {
+    const fetchProfile = async () => {
+      if (!token) {
         setLoading(false);
         return;
       }
-      if (existingToken.startsWith('mock-token-')) {
-        setToken(existingToken);
-        setUser(buildMockUser(existingToken));
+      if (token.startsWith('mock-token-')) {
+        setUser(buildMockUser(token));
         setLoading(false);
         return;
       }
       try {
-        setToken(existingToken);
         const data = await getMe();
         setUser(data.user || data);
       } catch (error) {
@@ -68,17 +41,41 @@ export const AuthProvider = ({ children }) => {
         setLoading(false);
       }
     };
-    bootstrap();
-  }, []);
+    fetchProfile();
+  }, [token]);
 
-  // Used only by the developer preset bypass buttons — real logins go
-  // through the redirect flow handled above.
-  const handleLogin = async (mockToken) => {
+  const handleLogin = async (newToken) => {
     setLoading(true);
-    localStorage.setItem('cams_token', mockToken);
-    setUser(buildMockUser(mockToken));
-    setToken(mockToken);
-    setLoading(false);
+
+    if (newToken && newToken.startsWith('mock-token-')) {
+      localStorage.setItem('cams_token', newToken);
+      setUser(buildMockUser(newToken));
+      setToken(newToken);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // Real Microsoft login: exchange the Azure ID token for a CAMS-issued
+      // session token via the backend, which verifies it against Azure AD
+      // and checks the account is a registered CAMS user.
+      const authData = await apiLogin({ token: newToken });
+      const camsToken = authData.token;
+
+      localStorage.setItem('cams_token', camsToken);
+      setToken(camsToken);
+
+      const data = await getMe();
+      setUser(data.user || data);
+    } catch (error) {
+      console.error('Profile fetch after login failed:', error);
+      localStorage.removeItem('cams_token');
+      setToken(null);
+      setUser(null);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleLogout = () => {
