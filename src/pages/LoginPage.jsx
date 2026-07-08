@@ -14,25 +14,14 @@ export default function LoginPage() {
   const handleMicrosoftSignIn = async () => {
     setError('');
     setLoading(true);
-    let token = null;
-
     try {
-      const loginResult = await msalInstance.loginPopup(loginRequest);
-      token = loginResult.idToken;
+      // Full-page redirect instead of a popup: the browser navigates away to
+      // Microsoft and back, so there's no cross-window handoff to break.
+      // The response is picked up in AuthContext once the app reloads.
+      await msalInstance.loginRedirect(loginRequest);
     } catch (err) {
       console.error('MSAL login error:', err);
       setError('Microsoft login failed or was cancelled.');
-      setLoading(false);
-      return;
-    }
-
-    try {
-      await login(token);
-      navigate('/dashboard');
-    } catch (err) {
-      console.error('CAMS profile registration check error:', err);
-      setError('Your Microsoft account is not registered in CAMS. Please contact your administrator.');
-    } finally {
       setLoading(false);
     }
   };
