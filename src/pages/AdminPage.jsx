@@ -765,14 +765,16 @@ export default function AdminPage() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Model *</label>
-                <input
-                  type="text"
+                <select
                   required
                   name="model"
                   defaultValue={editingCentre?.model || ''}
-                  placeholder="e.g. Hybrid, Online, Regional, COCO"
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
-                />
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
+                >
+                  <option value="" disabled>Select model</option>
+                  <option value="COCO">COCO</option>
+                  <option value="FOFO">FOFO</option>
+                </select>
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t">
