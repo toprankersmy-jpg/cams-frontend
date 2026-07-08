@@ -17,11 +17,7 @@ const queryClient = new QueryClient({
   },
 });
 
-// MSAL must be initialized before rendering, in every window that loads this
-// bundle — including popup windows spawned by loginPopup(). Initialization is
-// what lets MSAL recognize a popup carrying a login response and hand it back
-// to the opener instead of just booting the app fresh inside the popup.
-msalInstance.initialize().then(() => {
+const renderApp = () => {
   createRoot(document.getElementById('root')).render(
     <StrictMode>
       <MsalProvider instance={msalInstance}>
@@ -35,4 +31,16 @@ msalInstance.initialize().then(() => {
       </MsalProvider>
     </StrictMode>,
   )
-})
+}
+
+// MSAL must be initialized before rendering, so it can process a pending
+// redirect response before the router makes any navigation decisions. If
+// initialization itself fails (e.g. corrupted MSAL cache state), the app
+// must still render — mock login and the rest of CAMS don't depend on MSAL,
+// and Microsoft sign-in simply won't be available until the underlying
+// issue is fixed, rather than the whole app going blank.
+msalInstance.initialize()
+  .catch((error) => {
+    console.error('MSAL initialization failed — Microsoft sign-in will be unavailable:', error);
+  })
+  .finally(renderApp)
