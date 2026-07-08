@@ -6,10 +6,11 @@ const AuthContext = createContext(null);
 const buildMockUser = (mockToken) => {
   const role = mockToken.replace('mock-token-', '');
   return {
-    id: 'mock-user-123',
+    id: role === 'admin' ? 'mock-admin-id' : 'mock-user-123',
     name: role.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
     email: `${role}@toprankers.com`,
-    role: role,
+    role: role === 'admin' ? 'leadership' : role,
+    is_admin: role === 'admin',
   };
 };
 

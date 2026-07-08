@@ -31,7 +31,12 @@ export default function LoginPage() {
       navigate('/dashboard');
     } catch (err) {
       console.error('CAMS profile registration check error:', err);
-      setError('Your Microsoft account is not registered in CAMS. Please contact your administrator.');
+      const serverError = err.response?.data?.error;
+      if (serverError) {
+        setError(serverError);
+      } else {
+        setError('Your Microsoft account is not registered in CAMS. Please contact your administrator.');
+      }
     } finally {
       setLoading(false);
     }
@@ -107,6 +112,7 @@ export default function LoginPage() {
           </p>
           <div className="grid grid-cols-2 gap-2 pt-1">
             {[
+              'admin',
               'hq_executive',
               'hq_manager',
               'rm',
