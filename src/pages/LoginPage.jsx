@@ -101,50 +101,52 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Developer Sandbox Panel */}
-        <div className="mt-6 bg-slate-100 border border-slate-200 rounded-xl p-4 space-y-3">
-          <div className="flex items-center gap-2 text-slate-700">
-            <ShieldAlert size={16} className="text-amber-500" />
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-600">Developer Preset Bypass</span>
-          </div>
-          <p className="text-[11px] text-slate-500 leading-normal">
-            Select a CAMS role to mock login immediately, simulating the view permissions and menu setups.
-          </p>
-          <div className="grid grid-cols-2 gap-2 pt-1">
-            {[
-              'admin',
-              'hq_executive',
-              'hq_manager',
-              'rm',
-              'centre_head',
-              'centre_executive',
-              'leadership',
-            ].map((rolePreset) => (
-              <button
-                key={rolePreset}
-                type="button"
-                onClick={() => handleQuickLogin(rolePreset)}
-                className="px-2 py-1.5 bg-white border border-slate-200 hover:border-indigo-500 hover:text-indigo-600 rounded-lg text-[10px] font-bold text-slate-600 transition-all text-left uppercase truncate cursor-pointer"
-              >
-                {rolePreset.replace('_', ' ')}
-              </button>
-            ))}
-          </div>
-          <div className="mt-3 pt-3 border-t border-slate-200">
-            <p className="text-[11px] text-slate-400 mb-2 leading-normal">
-              First visit today? The server may be sleeping. Wake it first:
+        {/* Developer Sandbox Panel — local dev only, never shipped to production */}
+        {import.meta.env.DEV && (
+          <div className="mt-6 bg-slate-100 border border-slate-200 rounded-xl p-4 space-y-3">
+            <div className="flex items-center gap-2 text-slate-700">
+              <ShieldAlert size={16} className="text-amber-500" />
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-600">Developer Preset Bypass</span>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-normal">
+              Select a CAMS role to mock login immediately, simulating the view permissions and menu setups.
             </p>
-            <a
-              href="https://cams-backend-t529.onrender.com/api/health"
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center justify-center gap-2 w-full py-2 px-3 bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold rounded-lg transition-all cursor-pointer"
-            >
-              <span>🚀</span>
-              <span>Ping Backend to Wake It Up</span>
-            </a>
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              {[
+                'admin',
+                'hq_executive',
+                'hq_manager',
+                'rm',
+                'centre_head',
+                'centre_executive',
+                'leadership',
+              ].map((rolePreset) => (
+                <button
+                  key={rolePreset}
+                  type="button"
+                  onClick={() => handleQuickLogin(rolePreset)}
+                  className="px-2 py-1.5 bg-white border border-slate-200 hover:border-indigo-500 hover:text-indigo-600 rounded-lg text-[10px] font-bold text-slate-600 transition-all text-left uppercase truncate cursor-pointer"
+                >
+                  {rolePreset.replace('_', ' ')}
+                </button>
+              ))}
+            </div>
+            <div className="mt-3 pt-3 border-t border-slate-200">
+              <p className="text-[11px] text-slate-400 mb-2 leading-normal">
+                First visit today? The server may be sleeping. Wake it first:
+              </p>
+              <a
+                href="https://cams-backend-t529.onrender.com/api/health"
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center justify-center gap-2 w-full py-2 px-3 bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold rounded-lg transition-all cursor-pointer"
+              >
+                <span>🚀</span>
+                <span>Ping Backend to Wake It Up</span>
+              </a>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
