@@ -17,7 +17,6 @@ export default function LoginPage() {
     let token = null;
 
     try {
-      await msalInstance.initialize();
       const loginResult = await msalInstance.loginPopup(loginRequest);
       token = loginResult.idToken;
     } catch (err) {
