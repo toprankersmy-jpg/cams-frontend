@@ -4,6 +4,9 @@ export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
   retries: 0,
+  // Roles resolving to an is_admin user (e.g. leadership) legitimately see all
+  // ~14 nav items and the "visit every page" test walks them sequentially.
+  timeout: 60000,
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
     baseURL: 'http://localhost:5173',
