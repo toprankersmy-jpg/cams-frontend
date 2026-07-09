@@ -23,6 +23,8 @@ export default function CentresPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchText, setSearchText] = useState('');
+  const [rmFilter, setRmFilter] = useState('all');
+  const [modelFilter, setModelFilter] = useState('all');
 
   // Fetch centres list
   const { data: centres, isLoading, error } = useQuery({
@@ -40,10 +42,16 @@ export default function CentresPage() {
 
   const centreList = Array.isArray(centres) ? centres : (centres?.centres || centres?.data || []);
 
+  const rmOptions = Array.from(new Set(centreList.map((c) => c.rm?.name).filter(Boolean)));
+
   const filtered = centreList.filter((c) => {
-    if (!searchText) return true;
-    const q = searchText.toLowerCase();
-    return c.name?.toLowerCase().includes(q) || c.code?.toLowerCase().includes(q);
+    if (searchText) {
+      const q = searchText.toLowerCase();
+      if (!c.name?.toLowerCase().includes(q) && !c.code?.toLowerCase().includes(q)) return false;
+    }
+    if (rmFilter !== 'all' && c.rm?.name !== rmFilter) return false;
+    if (modelFilter !== 'all' && c.model !== modelFilter) return false;
+    return true;
   });
 
   const getRoleTasksPath = () => {
@@ -93,8 +101,8 @@ export default function CentresPage() {
         </div>
       )}
 
-      {/* Search Bar */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+      {/* Search + Filters Bar */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
         <div className="relative">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
@@ -104,6 +112,25 @@ export default function CentresPage() {
             onChange={(e) => setSearchText(e.target.value)}
             className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-400"
           />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <select
+            value={rmFilter}
+            onChange={(e) => setRmFilter(e.target.value)}
+            className="px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-650 font-semibold"
+          >
+            <option value="all">All RMs</option>
+            {rmOptions.map((rm) => <option key={rm} value={rm}>{rm}</option>)}
+          </select>
+          <select
+            value={modelFilter}
+            onChange={(e) => setModelFilter(e.target.value)}
+            className="px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-650 font-semibold"
+          >
+            <option value="all">All Models</option>
+            <option value="COCO">COCO</option>
+            <option value="FOFO">FOFO</option>
+          </select>
         </div>
       </div>
 
@@ -118,16 +145,23 @@ export default function CentresPage() {
           const id = c._id || c.id || '';
           return (
             <div key={id} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col gap-4">
-              <div className="flex items-start gap-3">
-                <div className="bg-indigo-50 p-2.5 rounded-xl shrink-0">
-                  <Building2 size={20} className="text-indigo-600" />
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="bg-indigo-50 p-2.5 rounded-xl shrink-0">
+                    <Building2 size={20} className="text-indigo-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-slate-900 text-sm leading-tight truncate">{c.name}</h3>
+                    <span className="inline-block mt-1 text-[10px] px-2 py-0.5 rounded-full font-bold bg-indigo-100 text-indigo-700 tracking-wide uppercase border border-indigo-200">
+                      {c.code}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-slate-900 text-sm leading-tight truncate">{c.name}</h3>
-                  <span className="inline-block mt-1 text-[10px] px-2 py-0.5 rounded-full font-bold bg-indigo-100 text-indigo-700 tracking-wide uppercase border border-indigo-200">
-                    {c.code}
+                {c.model && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-slate-100 text-slate-600 border border-slate-200 shrink-0">
+                    {c.model}
                   </span>
-                </div>
+                )}
               </div>
               {(c.city || c.location) && (
                 <div className="flex items-center gap-1.5 text-xs text-slate-500">
@@ -135,8 +169,19 @@ export default function CentresPage() {
                   <span>{c.city || c.location}</span>
                 </div>
               )}
+              <div className="text-xs text-slate-500 space-y-0.5">
+                <div>RM: <span className="font-semibold text-slate-700">{c.rm?.name || '—'}</span></div>
+                <div>CH: <span className="font-semibold text-slate-700">{c.ch?.name || '—'}</span></div>
+              </div>
               <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                <span className="text-xs text-slate-400 font-medium">Active Tasks: <span className="text-slate-600 font-bold">—</span></span>
+                <div className="flex items-center gap-3 text-xs">
+                  <span className="text-slate-500">
+                    <span className="font-bold text-indigo-600">{c.open_tasks ?? 0}</span> open
+                  </span>
+                  <span className="text-slate-500">
+                    <span className={`font-bold ${c.overdue_tasks ? 'text-rose-600' : 'text-emerald-600'}`}>{c.overdue_tasks ?? 0}</span> overdue
+                  </span>
+                </div>
                 <button
                   onClick={() => handleViewTasks(id)}
                   className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-all cursor-pointer border border-transparent hover:border-indigo-200"
