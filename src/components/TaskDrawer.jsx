@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
-import { 
-  getTaskById, 
-  getTaskComments, 
-  addComment, 
-  updateTaskStatus 
+import {
+  getTaskById,
+  getTaskComments,
+  addComment,
+  updateTaskStatus,
+  deleteTask
 } from '../api';
-import { 
-  Clock, 
-  CheckCircle2, 
-  AlertCircle, 
+import {
+  Clock,
+  CheckCircle2,
+  AlertCircle,
   HelpCircle,
   MessageSquare,
   Send,
@@ -19,7 +20,8 @@ import {
   Building,
   Activity,
   X,
-  Sparkles
+  Sparkles,
+  Trash2
 } from 'lucide-react';
 import { getPriorityBadge, getStatusBadge, getTaskDueDate } from '../utils/taskDisplay';
 
@@ -74,6 +76,26 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
     }
   });
 
+  // Delete Task Mutation (admin only)
+  const deleteTaskMutation = useMutation({
+    mutationFn: () => deleteTask(selectedTaskId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['taskStats'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['myTasks'] });
+      alert('Task deleted.');
+      onClose();
+    },
+    onError: (err) => {
+      alert(!err.response ? 'Server still waking up — try again in 30 seconds.' : (err.response?.data?.error || 'Failed to delete task.'));
+    }
+  });
+
+  const handleDeleteTask = () => {
+    if (!confirm(`Permanently delete task ${taskDetails?.task_number || ''}? This cannot be undone.`)) return;
+    deleteTaskMutation.mutate();
+  };
+
   const handlePostComment = (e) => {
     e.preventDefault();
     if (!newCommentText.trim()) return;
@@ -111,7 +133,9 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
     updateStatusMutation.mutate({ taskId: selectedTaskId, ...payload });
   };
 
-  const getTransitions = (status, role) => {
+  const ALL_ROLES = ['hq_manager', 'rm', 'centre_head', 'centre_executive', 'leadership', 'hq_executive'];
+
+  const transitionsForRole = (status, role) => {
     const list = [];
     if (role === 'hq_manager') {
       if (status === 'pending_manager_approval') {
@@ -146,6 +170,18 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
     return list;
   };
 
+  const getTransitions = (status, role) => {
+    if (!user?.is_admin) return transitionsForRole(status, role);
+    // Admin bypass: union of every role's available actions for this status
+    const seen = new Map();
+    for (const r of ALL_ROLES) {
+      for (const t of transitionsForRole(status, r)) {
+        if (!seen.has(t.status)) seen.set(t.status, t);
+      }
+    }
+    return Array.from(seen.values());
+  };
+
   if (!selectedTaskId) return null;
 
   const currentPriority = taskDetails?.final_priority || taskDetails?.proposed_priority;
@@ -171,12 +207,24 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
               {taskDetails?.title || (detailsLoading ? 'Loading details...' : 'Task View')}
             </h3>
           </div>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200 p-1.5 transition-colors cursor-pointer shrink-0"
-          >
-            <X size={18} />
-          </button>
+          <div className="flex items-center gap-1 shrink-0">
+            {user?.is_admin && (
+              <button
+                onClick={handleDeleteTask}
+                disabled={deleteTaskMutation.isPending}
+                title="Delete task (admin)"
+                className="text-rose-400 hover:text-rose-600 rounded-full hover:bg-rose-50 p-1.5 transition-colors cursor-pointer"
+              >
+                <Trash2 size={17} />
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200 p-1.5 transition-colors cursor-pointer"
+            >
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         {/* Drawer Body (Scrollable) */}

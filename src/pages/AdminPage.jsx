@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { 
+import {
   getAllUsers, createUser, updateUser, deactivateUser, toggleUserAdmin,
   getAllCentres, createCentre, updateCentre, deactivateCentre,
-  getAllPermissions, updateRolePermission, getUserPermissions, setUserOverridePermission, deleteUserOverridePermission
+  getAllPermissions, updateRolePermission, getUserPermissions, setUserOverridePermission, deleteUserOverridePermission,
+  getUsersByRole
 } from '../api';
 import { 
   Shield, Users, Building2, Key, UserCheck, UserMinus, Plus, Edit2, 
@@ -43,6 +44,7 @@ export default function AdminPage() {
   // Modals state
   const [userModalOpen, setUserModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
+  const [userFormRole, setUserFormRole] = useState('hq_executive');
   const [centreModalOpen, setCentreModalOpen] = useState(false);
   const [editingCentre, setEditingCentre] = useState(null);
 
@@ -70,6 +72,16 @@ export default function AdminPage() {
     queryKey: ['userPermissionsOverrides', selectedOverrideUser?.id],
     queryFn: () => getUserPermissions(selectedOverrideUser.id),
     enabled: !!selectedOverrideUser,
+  });
+
+  const { data: rmUsers } = useQuery({
+    queryKey: ['usersByRole', 'rm'],
+    queryFn: () => getUsersByRole('rm'),
+  });
+
+  const { data: chUsers } = useQuery({
+    queryKey: ['usersByRole', 'centre_head'],
+    queryFn: () => getUsersByRole('centre_head'),
   });
 
   // User Mutation Actions
@@ -232,7 +244,7 @@ export default function AdminPage() {
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
               <h3 className="font-bold text-slate-900 text-lg">CAMS Portal Users</h3>
               <button
-                onClick={() => { setEditingUser(null); setUserModalOpen(true); }}
+                onClick={() => { setEditingUser(null); setUserFormRole('hq_executive'); setUserModalOpen(true); }}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-sm"
               >
                 <Plus size={14} />
@@ -279,7 +291,7 @@ export default function AdminPage() {
                       </td>
                       <td className="py-3.5 px-6 text-right space-x-1.5">
                         <button
-                          onClick={() => { setEditingUser(u); setUserModalOpen(true); }}
+                          onClick={() => { setEditingUser(u); setUserFormRole(u.role || 'hq_executive'); setUserModalOpen(true); }}
                           className="p-1.5 text-slate-400 hover:text-indigo-650 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors inline-block"
                         >
                           <Edit2 size={14} />
@@ -324,6 +336,8 @@ export default function AdminPage() {
                     <th className="py-3.5 px-6">Name</th>
                     <th className="py-3.5 px-6">Code</th>
                     <th className="py-3.5 px-6">Model</th>
+                    <th className="py-3.5 px-6">RM</th>
+                    <th className="py-3.5 px-6">Centre Head</th>
                     <th className="py-3.5 px-6">Active</th>
                     <th className="py-3.5 px-6 text-right">Actions</th>
                   </tr>
@@ -331,13 +345,19 @@ export default function AdminPage() {
                 <tbody className="divide-y divide-slate-100 text-sm">
                   {centresLoading ? (
                     <tr>
-                      <td colSpan="5" className="py-8 text-center text-slate-400">Loading centres...</td>
+                      <td colSpan="7" className="py-8 text-center text-slate-400">Loading centres...</td>
                     </tr>
                   ) : centres?.map((c) => (
                     <tr key={c.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="py-3.5 px-6 font-semibold text-slate-800">{c.name}</td>
                       <td className="py-3.5 px-6 font-mono text-xs font-semibold text-slate-650">{c.code}</td>
                       <td className="py-3.5 px-6 text-slate-500">{c.model || '—'}</td>
+                      <td className="py-3.5 px-6 text-slate-500">
+                        {c.rm?.name || <span className="text-amber-600 font-semibold">Unassigned</span>}
+                      </td>
+                      <td className="py-3.5 px-6 text-slate-500">
+                        {c.ch?.name || <span className="text-amber-600 font-semibold">Unassigned</span>}
+                      </td>
                       <td className="py-3.5 px-6">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border ${
                           c.is_active ? 'bg-emerald-50 text-emerald-700 border-emerald-250' : 'bg-rose-50 text-rose-700 border-rose-250'
@@ -363,7 +383,7 @@ export default function AdminPage() {
                   ))}
                   {!centresLoading && !centres?.length && (
                     <tr>
-                      <td colSpan="5" className="py-8 text-center text-slate-400">No centres found.</td>
+                      <td colSpan="7" className="py-8 text-center text-slate-400">No centres found.</td>
                     </tr>
                   )}
                 </tbody>
@@ -656,7 +676,8 @@ export default function AdminPage() {
                 <select
                   required
                   name="role"
-                  defaultValue={editingUser?.role || 'hq_executive'}
+                  value={userFormRole}
+                  onChange={(e) => setUserFormRole(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
                 >
                   {rolesList.map(r => (
@@ -677,31 +698,46 @@ export default function AdminPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Associated Centre</label>
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                  Associated Centre {(userFormRole === 'centre_head' || userFormRole === 'centre_executive') && '*'}
+                </label>
                 <select
+                  required={userFormRole === 'centre_head' || userFormRole === 'centre_executive'}
                   name="centre_id"
                   defaultValue={editingUser?.centre_id || ''}
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
                 >
-                  <option value="">None</option>
+                  <option value="">{(userFormRole === 'centre_head' || userFormRole === 'centre_executive') ? 'Select centre' : 'None'}</option>
                   {centres?.map(c => (
                     <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
                   ))}
                 </select>
+                {(userFormRole === 'centre_head' || userFormRole === 'centre_executive') && (
+                  <p className="text-[11px] text-slate-400 mt-1">Required so tasks route to the right centre and the correct RM/CH can see this person's work.</p>
+                )}
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Reporting Manager</label>
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                  Reporting Manager {userFormRole === 'hq_executive' && '*'}
+                </label>
                 <select
+                  required={userFormRole === 'hq_executive'}
                   name="manager_id"
                   defaultValue={editingUser?.manager_id || ''}
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
                 >
-                  <option value="">None</option>
-                  {users?.filter(u => u.role === 'hq_manager' || u.role === 'leadership').map(u => (
+                  <option value="">{userFormRole === 'hq_executive' ? 'Select manager' : 'None'}</option>
+                  {users?.filter(u => {
+                    if (userFormRole === 'centre_executive') return u.role === 'centre_head';
+                    return u.role === 'hq_manager' || u.role === 'leadership';
+                  }).map(u => (
                     <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
                   ))}
                 </select>
+                {userFormRole === 'hq_executive' && (
+                  <p className="text-[11px] text-slate-400 mt-1">Required so approval routes to exactly this manager, not the whole department queue.</p>
+                )}
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t">
@@ -735,7 +771,9 @@ export default function AdminPage() {
                 const name = fd.get('name');
                 const code = fd.get('code');
                 const model = fd.get('model') || null;
-                saveCentreMutation.mutate({ name, code, model });
+                const rm_id = fd.get('rm_id') || null;
+                const ch_id = fd.get('ch_id') || null;
+                saveCentreMutation.mutate({ name, code, model, rm_id, ch_id });
               }}
               className="p-6 space-y-4"
             >
@@ -775,6 +813,42 @@ export default function AdminPage() {
                   <option value="COCO">COCO</option>
                   <option value="FOFO">FOFO</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Regional Manager *</label>
+                <select
+                  required
+                  name="rm_id"
+                  defaultValue={editingCentre?.rm_id || ''}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
+                >
+                  <option value="" disabled>Select RM</option>
+                  {rmUsers?.map(u => (
+                    <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                  ))}
+                </select>
+                {!rmUsers?.length && (
+                  <p className="text-[11px] text-amber-600 mt-1">No RM users exist yet — create one first, or tasks against this centre won't route anywhere.</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Centre Head *</label>
+                <select
+                  required
+                  name="ch_id"
+                  defaultValue={editingCentre?.ch_id || ''}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
+                >
+                  <option value="" disabled>Select Centre Head</option>
+                  {chUsers?.map(u => (
+                    <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                  ))}
+                </select>
+                {!chUsers?.length && (
+                  <p className="text-[11px] text-amber-600 mt-1">No Centre Head users exist yet — create one first, or tasks against this centre won't route anywhere.</p>
+                )}
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t">

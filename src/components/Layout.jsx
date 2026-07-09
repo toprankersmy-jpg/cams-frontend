@@ -43,7 +43,6 @@ export default function Layout() {
   const [taskDepartment, setTaskDepartment] = useState('');
   const [targetType, setTargetType] = useState('specific_centre');
   const [targetPersonId, setTargetPersonId] = useState('');
-  const [targetDepartment, setTargetDepartment] = useState('');
 
   // Fetch unread notifications count
   const { data: unreadData } = useQuery({
@@ -90,9 +89,23 @@ export default function Layout() {
     enabled: isTaskModalOpen,
   });
 
+  const { data: regionalManagers } = useQuery({
+    queryKey: ['regionalManagers'],
+    queryFn: () => getUsersByRole('rm'),
+    enabled: isTaskModalOpen,
+  });
+
+  const { data: hqManagers } = useQuery({
+    queryKey: ['hqManagers'],
+    queryFn: () => getUsersByRole('hq_manager'),
+    enabled: isTaskModalOpen,
+  });
+
   const targetUsersList = [
     ...(executives || []),
-    ...(centreHeads || [])
+    ...(centreHeads || []),
+    ...(regionalManagers || []),
+    ...(hqManagers || [])
   ];
 
   const createTaskMutation = useMutation({
@@ -111,7 +124,6 @@ export default function Layout() {
       setTaskDepartment('');
       setTargetType('specific_centre');
       setTargetPersonId('');
-      setTargetDepartment('');
       alert('Task created successfully!');
     },
     onError: (err) => {
@@ -153,11 +165,7 @@ export default function Layout() {
       }
       payload.target_person_id = targetPersonId;
     } else if (targetType === 'team_department') {
-      if (!targetDepartment) {
-        alert('Please select a target department.');
-        return;
-      }
-      payload.target_department = targetDepartment;
+      payload.target_department = taskDepartment;
     } else if (targetType === 'all_centres') {
       payload.is_general = true;
     }
@@ -390,14 +398,20 @@ export default function Layout() {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Department *</label>
-                  <input
-                    type="text"
+                  <select
                     required
-                    placeholder="e.g. Operations, Finance"
                     value={taskDepartment}
                     onChange={(e) => setTaskDepartment(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-400"
-                  />
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                  >
+                    <option value="">Select Department</option>
+                    <option value="Operations">Operations</option>
+                    <option value="Finance">Finance</option>
+                    <option value="HR">HR</option>
+                    <option value="Marketing">Marketing</option>
+                    <option value="Academics">Academics</option>
+                    <option value="Compliance">Compliance</option>
+                  </select>
                 </div>
               </div>
 
@@ -451,7 +465,7 @@ export default function Layout() {
                         <option value="">Select Person</option>
                         {targetUsersList.map((u) => (
                           <option key={u.id} value={u.id}>
-                            {u.name} ({u.role.replace(/_/g, ' ')})
+                            {u.name} ({u.role.replace(/_/g, ' ')} — {u.department || 'No dept'})
                           </option>
                         ))}
                       </select>
@@ -459,23 +473,9 @@ export default function Layout() {
                   )}
 
                   {targetType === 'team_department' && (
-                    <>
-                      <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Department *</label>
-                      <select
-                        required
-                        value={targetDepartment}
-                        onChange={(e) => setTargetDepartment(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-semibold"
-                      >
-                        <option value="">Select Department</option>
-                        <option value="Operations">Operations</option>
-                        <option value="Finance">Finance</option>
-                        <option value="HR">HR</option>
-                        <option value="Marketing">Marketing</option>
-                        <option value="Academics">Academics</option>
-                        <option value="Compliance">Compliance</option>
-                      </select>
-                    </>
+                    <p className="text-xs text-slate-500 italic pt-1">
+                      Routes to the {taskDepartment || 'selected'} department's manager, who will route it further within their team.
+                    </p>
                   )}
 
                   {targetType === 'all_centres' && (

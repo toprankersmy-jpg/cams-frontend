@@ -11,6 +11,7 @@ export const getTaskById = (id) => api.get(`/api/tasks/${id}`).then((res) => res
 export const createTask = (data) => api.post('/api/tasks', data).then((res) => res.data);
 export const updateTaskStatus = (id, data) => api.patch(`/api/tasks/${id}/status`, data).then((res) => res.data);
 export const assignTask = (id, data) => api.patch(`/api/tasks/${id}/assign`, data).then((res) => res.data);
+export const deleteTask = (id) => api.delete(`/api/tasks/${id}`).then((res) => res.data);
 export const getTaskStats = () => api.get('/api/tasks/stats').then((res) => res.data);
 
 // Task Comments API
