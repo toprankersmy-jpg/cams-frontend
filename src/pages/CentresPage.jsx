@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { getAllCentres } from '../api';
+import { useAuth } from '../context/AuthContext';
+import { getAllCentres, getResolvedPermissionsMe } from '../api';
 import { Search, Building2, MapPin, ArrowRight } from 'lucide-react';
 
 const SkeletonCard = () => (
@@ -19,13 +20,22 @@ const SkeletonCard = () => (
 );
 
 export default function CentresPage() {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [searchText, setSearchText] = useState('');
 
+  // Fetch centres list
   const { data: centres, isLoading, error } = useQuery({
     queryKey: ['centres'],
     queryFn: getAllCentres,
     retry: 1,
+  });
+
+  // Fetch current user permissions to resolve correct tasks route path
+  const { data: myPermissions } = useQuery({
+    queryKey: ['myPermissions'],
+    queryFn: getResolvedPermissionsMe,
+    enabled: !!user,
   });
 
   const centreList = Array.isArray(centres) ? centres : (centres?.centres || centres?.data || []);
@@ -35,6 +45,39 @@ export default function CentresPage() {
     const q = searchText.toLowerCase();
     return c.name?.toLowerCase().includes(q) || c.code?.toLowerCase().includes(q);
   });
+
+  const getRoleTasksPath = () => {
+    if (user?.is_admin) return '/tasks/all';
+    
+    // Explicit role-correct mapping from briefing spec
+    const roleMap = {
+      hq_executive: '/tasks/all',
+      hq_manager: '/department',
+      rm: '/region',
+      centre_head: '/basket',
+      centre_executive: '/assigned',
+      leadership: '/tasks/all'
+    };
+
+    const mappedPath = roleMap[user?.role];
+    if (mappedPath) return mappedPath;
+
+    // Permissions check fallback
+    if (!myPermissions) return '/dashboard';
+    if (myPermissions['page:tasks_all']) return '/tasks/all';
+    if (myPermissions['page:tasks_my']) return '/tasks/my';
+    if (myPermissions['page:region']) return '/region';
+    if (myPermissions['page:department']) return '/department';
+    if (myPermissions['page:basket']) return '/basket';
+    if (myPermissions['page:assigned']) return '/assigned';
+    
+    return '/dashboard';
+  };
+
+  const handleViewTasks = (centreId) => {
+    const targetPath = getRoleTasksPath();
+    navigate(targetPath, { state: { filterCentreId: centreId } });
+  };
 
   return (
     <div className="space-y-6">
@@ -95,8 +138,8 @@ export default function CentresPage() {
               <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                 <span className="text-xs text-slate-400 font-medium">Active Tasks: <span className="text-slate-600 font-bold">—</span></span>
                 <button
-                  onClick={() => navigate('/tasks/all')}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-all cursor-pointer"
+                  onClick={() => handleViewTasks(id)}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-all cursor-pointer border border-transparent hover:border-indigo-200"
                 >
                   View Tasks <ArrowRight size={13} />
                 </button>
