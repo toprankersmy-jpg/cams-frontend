@@ -102,9 +102,16 @@ export default function DashboardPage() {
       if (reason === null) return;
       payload.rejection_reason = reason || undefined;
     } else if (status === 'in_progress' && user?.role === 'rm' && taskDetails?.status === 'active_in_ch_basket') {
-      const fp = prompt('Please enter final priority (Low, Medium, High, Critical) or leave empty:', taskDetails?.priority || '');
+      const fp = prompt('Please enter final priority (P1, P2, P3, or P4) or leave empty:');
       if (fp === null) return; // user cancelled
-      if (fp) payload.final_priority = fp;
+      const normalized = fp.trim().toUpperCase();
+      if (normalized) {
+        if (!['P1', 'P2', 'P3', 'P4'].includes(normalized)) {
+          alert('Final priority must be one of P1, P2, P3, or P4.');
+          return;
+        }
+        payload.final_priority = normalized;
+      }
     }
     updateStatusMutation.mutate({ taskId: selectedTaskId, ...payload });
   };

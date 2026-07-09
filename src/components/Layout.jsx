@@ -36,7 +36,7 @@ export default function Layout() {
   const [taskTitle, setTaskTitle] = useState('');
   const [taskDesc, setTaskDesc] = useState('');
   const [taskCentre, setTaskCentre] = useState('');
-  const [taskPriority, setTaskPriority] = useState('Medium');
+  const [taskPriority, setTaskPriority] = useState('medium');
   const [taskDueDate, setTaskDueDate] = useState('');
   const [taskAssignedTo, setTaskAssignedTo] = useState('');
   const [taskType, setTaskType] = useState('');
@@ -78,7 +78,7 @@ export default function Layout() {
       setTaskTitle('');
       setTaskDesc('');
       setTaskCentre('');
-      setTaskPriority('Medium');
+      setTaskPriority('medium');
       setTaskDueDate('');
       setTaskAssignedTo('');
       setTaskType('');
@@ -89,7 +89,7 @@ export default function Layout() {
       const isOffline = !err.response;
       alert(isOffline
         ? 'Server is still waking up — please wait 30 seconds then try again.'
-        : (err.response?.data?.message || 'Failed to create task'));
+        : (err.response?.data?.error || 'Failed to create task'));
     }
   });
 
@@ -370,10 +370,9 @@ export default function Layout() {
                     onChange={(e) => setTaskPriority(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                   >
-                    <option value="Low">Low</option>
-                    <option value="Medium">Medium</option>
-                    <option value="High">High</option>
-                    <option value="Critical">Critical</option>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
                   </select>
                 </div>
               </div>
