@@ -8,6 +8,9 @@ import TasksPage from './pages/TasksPage';
 import CentresPage from './pages/CentresPage';
 import NotificationsPage from './pages/NotificationsPage';
 import AdminPage from './pages/AdminPage';
+import KanbanPage from './pages/KanbanPage';
+import ReportsPage from './pages/ReportsPage';
+import DelegatePage from './pages/DelegatePage';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getResolvedPermissionsMe } from './api';
@@ -94,11 +97,11 @@ export default function App() {
             <Route path="/region" element={<TasksPage />} />
             <Route path="/basket" element={<TasksPage />} />
             <Route path="/assigned" element={<TasksPage />} />
-            <Route path="/delegate" element={<TasksPage />} />
+            <Route path="/delegate" element={<DelegatePage />} />
             <Route path="/centres" element={<CentresPage />} />
             <Route path="/notifications" element={<NotificationsPage />} />
-            <Route path="/kanban" element={<DashboardPage />} />
-            <Route path="/reports" element={<DashboardPage />} />
+            <Route path="/kanban" element={<KanbanPage />} />
+            <Route path="/reports" element={<ReportsPage />} />
             <Route path="/admin" element={<AdminPage />} />
           </Route>
         </Route>
