@@ -1,57 +1,11 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
-import { getMyTasks, getAllTasks } from '../api';
-import { Search, ChevronRight, Loader2 } from 'lucide-react';
-
-const getPriorityBadge = (priority) => {
-  const styles = {
-    Low: 'bg-slate-100 text-slate-700',
-    Medium: 'bg-blue-100 text-blue-700',
-    High: 'bg-amber-100 text-amber-700',
-    Critical: 'bg-red-100 text-red-700 font-bold',
-  };
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${styles[priority] || 'bg-slate-100 text-slate-700'}`}>
-      {priority || 'Unknown'}
-    </span>
-  );
-};
-
-const getStatusBadge = (status) => {
-  const styles = {
-    pending_manager_approval: 'bg-amber-50 text-amber-700 border-amber-200',
-    active_in_ch_basket: 'bg-blue-50 text-blue-700 border-blue-200',
-    acknowledged: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-    in_progress: 'bg-violet-50 text-violet-700 border-violet-200',
-    completed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    closed: 'bg-gray-50 text-gray-600 border-gray-200',
-    rejected: 'bg-red-50 text-red-700 border-red-200',
-    blocked: 'bg-orange-50 text-orange-700 border-orange-200',
-    reopened: 'bg-cyan-50 text-cyan-700 border-cyan-200',
-  };
-  const label = status ? status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : 'Unknown';
-  return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${styles[status] || 'bg-slate-50 text-slate-650 border-slate-200'}`}>
-      {label}
-    </span>
-  );
-};
-
-const getTaskDueDate = (t, role) => {
-  if (!t) return null;
-  let rawDate;
-  if (role === 'rm' || role === 'centre_head' || role === 'centre_executive') {
-    rawDate = t.rm_due_date || t.manager_due_date || t.initiator_due_date || t.due_date || t.dueDate;
-  } else if (role === 'hq_manager') {
-    rawDate = t.manager_due_date || t.initiator_due_date || t.due_date || t.dueDate;
-  } else if (role === 'hq_executive') {
-    rawDate = t.initiator_due_date || t.due_date || t.dueDate;
-  } else {
-    rawDate = t.rm_due_date || t.manager_due_date || t.initiator_due_date || t.due_date || t.dueDate;
-  }
-  return rawDate ? new Date(rawDate) : null;
-};
+import { useLocation } from 'react-router-dom';
+import { getMyTasks, getAllTasks, getAllCentres } from '../api';
+import { Search, ChevronRight, Loader2, Building } from 'lucide-react';
+import { getPriorityBadge, getStatusBadge, getTaskDueDate } from '../utils/taskDisplay';
+import TaskDrawer from '../components/TaskDrawer';
 
 const SkeletonRow = () => (
   <tr>
@@ -65,25 +19,44 @@ const SkeletonRow = () => (
 
 export default function TasksPage() {
   const { user } = useAuth();
+  const location = useLocation();
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
+  const [centreFilter, setCentreFilter] = useState(location.state?.filterCentreId || 'all');
+  const [selectedTaskId, setSelectedTaskId] = useState(null);
 
   const canSeeAll = ['leadership', 'hq_manager', 'rm'].includes(user?.role);
 
+  // Fetch tasks
   const { data: tasks, isLoading, error } = useQuery({
     queryKey: ['tasks', canSeeAll ? 'all' : 'my'],
     queryFn: canSeeAll ? getAllTasks : getMyTasks,
     retry: 1,
   });
 
+  // Fetch all centres for filtering
+  const { data: centres } = useQuery({
+    queryKey: ['centres'],
+    queryFn: getAllCentres,
+    retry: 1,
+  });
+
   const taskList = Array.isArray(tasks) ? tasks : (tasks?.tasks || tasks?.data || []);
+  const centreList = Array.isArray(centres) ? centres : (centres?.centres || centres?.data || []);
 
   const filtered = taskList.filter((t) => {
     const matchSearch = !searchText || t.title?.toLowerCase().includes(searchText.toLowerCase());
     const matchStatus = statusFilter === 'all' || t.status === statusFilter;
-    const matchPriority = priorityFilter === 'all' || t.priority === priorityFilter;
-    return matchSearch && matchStatus && matchPriority;
+    
+    // Support proposed and final priorities in filter check
+    const taskPriorityVal = t.final_priority || t.proposed_priority || '';
+    const matchPriority = priorityFilter === 'all' || taskPriorityVal.toLowerCase() === priorityFilter.toLowerCase();
+    
+    // Filter by centre
+    const matchCentre = centreFilter === 'all' || t.target_centre_id === centreFilter;
+    
+    return matchSearch && matchStatus && matchPriority && matchCentre;
   });
 
   return (
@@ -106,6 +79,7 @@ export default function TasksPage() {
 
       {/* Filter Bar */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-wrap items-center gap-3">
+        {/* Search */}
         <div className="relative flex-1 min-w-[200px]">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
@@ -116,6 +90,8 @@ export default function TasksPage() {
             className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-400"
           />
         </div>
+        
+        {/* Status Filter */}
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
@@ -130,17 +106,37 @@ export default function TasksPage() {
           <option value="closed">Closed</option>
           <option value="rejected">Rejected</option>
           <option value="blocked">Blocked</option>
+          <option value="reopened">Reopened</option>
         </select>
+        
+        {/* Centre Filter */}
+        <select
+          value={centreFilter}
+          onChange={(e) => setCentreFilter(e.target.value)}
+          className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-600"
+        >
+          <option value="all">All Centres</option>
+          {centreList.map((c) => (
+            <option key={c.id || c._id} value={c.id || c._id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+
+        {/* Priority Filter */}
         <select
           value={priorityFilter}
           onChange={(e) => setPriorityFilter(e.target.value)}
           className="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-600"
         >
           <option value="all">All Priorities</option>
-          <option value="Low">Low</option>
-          <option value="Medium">Medium</option>
-          <option value="High">High</option>
-          <option value="Critical">Critical</option>
+          <option value="low">Low</option>
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
+          <option value="P1">P1 (Critical)</option>
+          <option value="P2">P2 (High)</option>
+          <option value="P3">P3 (Medium)</option>
+          <option value="P4">P4 (Low)</option>
         </select>
       </div>
 
@@ -167,19 +163,25 @@ export default function TasksPage() {
               {isLoading && [...Array(5)].map((_, i) => <SkeletonRow key={i} />)}
               {!isLoading && filtered.map((t) => {
                 const id = t._id || t.id || '';
+                const currentPriority = t.final_priority || t.proposed_priority;
                 return (
                   <tr key={id} className="hover:bg-slate-50/50 transition-colors">
                     <td className="py-3.5 px-6 font-mono text-xs text-slate-400">{id.slice(-6).toUpperCase()}</td>
                     <td className="py-3.5 px-6 font-semibold text-slate-800">{t.title}</td>
-                    <td className="py-3.5 px-6 text-slate-600">{t.centre?.name || '—'}</td>
-                    <td className="py-3.5 px-6">{getPriorityBadge(t.priority)}</td>
+                    <td className="py-3.5 px-6 text-slate-650 flex items-center gap-1.5 mt-2">
+                      <Building size={13} className="text-slate-400" />
+                      <span>{t.target_centre?.name || 'All Centres'}</span>
+                    </td>
+                    <td className="py-3.5 px-6">{getPriorityBadge(currentPriority)}</td>
                     <td className="py-3.5 px-6">{getStatusBadge(t.status)}</td>
                     <td className="py-3.5 px-6 text-slate-500">
-                      {getTaskDueDate(t, user?.role) ? getTaskDueDate(t, user?.role).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                      {getTaskDueDate(t, user?.role) 
+                        ? getTaskDueDate(t, user?.role).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) 
+                        : '—'}
                     </td>
                     <td className="py-3.5 px-6 text-right">
                       <button
-                        onClick={() => console.log('View task:', id)}
+                        onClick={() => setSelectedTaskId(id)}
                         className="inline-flex items-center gap-1 bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer shadow-sm"
                       >
                         View <ChevronRight size={14} />
@@ -203,6 +205,14 @@ export default function TasksPage() {
           </table>
         </div>
       </div>
+
+      {/* Task detail drawer */}
+      {selectedTaskId && (
+        <TaskDrawer 
+          selectedTaskId={selectedTaskId} 
+          onClose={() => setSelectedTaskId(null)} 
+        />
+      )}
     </div>
   );
 }
