@@ -41,6 +41,9 @@ export default function Layout() {
   const [taskAssignedTo, setTaskAssignedTo] = useState('');
   const [taskType, setTaskType] = useState('');
   const [taskDepartment, setTaskDepartment] = useState('');
+  const [targetType, setTargetType] = useState('specific_centre');
+  const [targetPersonId, setTargetPersonId] = useState('');
+  const [targetDepartment, setTargetDepartment] = useState('');
 
   // Fetch unread notifications count
   const { data: unreadData } = useQuery({
@@ -69,6 +72,17 @@ export default function Layout() {
     enabled: isTaskModalOpen,
   });
 
+  const { data: centreHeads } = useQuery({
+    queryKey: ['centreHeads'],
+    queryFn: () => getUsersByRole('centre_head'),
+    enabled: isTaskModalOpen,
+  });
+
+  const targetUsersList = [
+    ...(executives || []),
+    ...(centreHeads || [])
+  ];
+
   const createTaskMutation = useMutation({
     mutationFn: createTask,
     onSuccess: () => {
@@ -83,6 +97,9 @@ export default function Layout() {
       setTaskAssignedTo('');
       setTaskType('');
       setTaskDepartment('');
+      setTargetType('specific_centre');
+      setTargetPersonId('');
+      setTargetDepartment('');
       alert('Task created successfully!');
     },
     onError: (err) => {
@@ -95,21 +112,45 @@ export default function Layout() {
 
   const handleCreateTask = (e) => {
     e.preventDefault();
-    if (!taskTitle || !taskType || !taskDepartment || !taskCentre || !taskDueDate) {
+    if (!taskTitle || !taskType || !taskDepartment || !taskDueDate) {
       alert('Please fill out all required fields');
       return;
     }
-    createTaskMutation.mutate({
+
+    const payload = {
       title: taskTitle,
       task_type: taskType,
-      target_type: 'specific_centre',
+      target_type: targetType,
       department: taskDepartment,
       description: taskDesc || undefined,
-      target_centre_id: taskCentre || undefined,
       proposed_priority: taskPriority || undefined,
       initiator_due_date: taskDueDate || undefined,
-      assigned_centre_executive: taskAssignedTo || undefined,
-    });
+    };
+
+    if (targetType === 'specific_centre') {
+      if (!taskCentre) {
+        alert('Please select a target centre.');
+        return;
+      }
+      payload.target_centre_id = taskCentre;
+      payload.assigned_centre_executive = taskAssignedTo || undefined;
+    } else if (targetType === 'specific_person') {
+      if (!targetPersonId) {
+        alert('Please select a target person.');
+        return;
+      }
+      payload.target_person_id = targetPersonId;
+    } else if (targetType === 'team_department') {
+      if (!targetDepartment) {
+        alert('Please select a target department.');
+        return;
+      }
+      payload.target_department = targetDepartment;
+    } else if (targetType === 'all_centres') {
+      payload.is_general = true;
+    }
+
+    createTaskMutation.mutate(payload);
   };
 
   const role = user?.role || 'hq_executive';
@@ -344,27 +385,98 @@ export default function Layout() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Centre *</label>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Target Type *</label>
                   <select
-                    required
-                    value={taskCentre}
-                    onChange={(e) => setTaskCentre(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                    value={targetType}
+                    onChange={(e) => setTargetType(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-semibold"
                   >
-                    <option value="">Select Centre</option>
-                    {centres?.map((c) => (
-                      <option key={c._id || c.id} value={c._id || c.id}>
-                        {c.name} ({c.code})
-                      </option>
-                    ))}
-                    {!centres?.length && (
-                      <option value="" disabled>Loading centres... (backend waking up)</option>
-                    )}
+                    <option value="specific_centre">Specific centre</option>
+                    <option value="specific_person">Specific person</option>
+                    <option value="all_centres">All centres</option>
+                    <option value="team_department">Team / Department</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Priority</label>
+                  {targetType === 'specific_centre' && (
+                    <>
+                      <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Centre *</label>
+                      <select
+                        required
+                        value={taskCentre}
+                        onChange={(e) => setTaskCentre(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                      >
+                        <option value="">Select Centre</option>
+                        {centres?.map((c) => (
+                          <option key={c._id || c.id} value={c._id || c.id}>
+                            {c.name} ({c.code})
+                          </option>
+                        ))}
+                        {!centres?.length && (
+                          <option value="" disabled>Loading centres...</option>
+                        )}
+                      </select>
+                    </>
+                  )}
+
+                  {targetType === 'specific_person' && (
+                    <>
+                      <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Person Name *</label>
+                      <select
+                        required
+                        value={targetPersonId}
+                        onChange={(e) => setTargetPersonId(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-semibold"
+                      >
+                        <option value="">Select Person</option>
+                        {targetUsersList.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.name} ({u.role.replace(/_/g, ' ')})
+                          </option>
+                        ))}
+                      </select>
+                    </>
+                  )}
+
+                  {targetType === 'team_department' && (
+                    <>
+                      <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Department *</label>
+                      <select
+                        required
+                        value={targetDepartment}
+                        onChange={(e) => setTargetDepartment(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-semibold"
+                      >
+                        <option value="">Select Department</option>
+                        <option value="Operations">Operations</option>
+                        <option value="Finance">Finance</option>
+                        <option value="HR">HR</option>
+                        <option value="Marketing">Marketing</option>
+                        <option value="Academics">Academics</option>
+                        <option value="Compliance">Compliance</option>
+                      </select>
+                    </>
+                  )}
+
+                  {targetType === 'all_centres' && (
+                    <>
+                      <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Target</label>
+                      <input
+                        type="text"
+                        disabled
+                        value="All centres"
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-100 text-slate-500 cursor-not-allowed"
+                      />
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Proposed Priority</label>
                   <select
                     value={taskPriority}
                     onChange={(e) => setTaskPriority(e.target.value)}
@@ -375,11 +487,9 @@ export default function Layout() {
                     <option value="high">High</option>
                   </select>
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Due Date *</label>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Requested Due Date *</label>
                   <input
                     type="date"
                     required
@@ -388,7 +498,9 @@ export default function Layout() {
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                   />
                 </div>
+              </div>
 
+              {targetType === 'specific_centre' && (
                 <div>
                   <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Assignee</label>
                   <select
@@ -407,7 +519,7 @@ export default function Layout() {
                     )}
                   </select>
                 </div>
-              </div>
+              )}
 
               {/* Submit / Cancel Actions */}
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
