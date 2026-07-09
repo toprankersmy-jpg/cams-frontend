@@ -4,32 +4,28 @@ import { useAuth } from '../context/AuthContext';
 import { 
   getTaskStats, 
   getMyTasks, 
-  getTaskById, 
-  getTaskComments, 
-  addComment, 
   updateTaskStatus 
 } from '../api';
 import { 
   Clock, 
   CheckCircle2, 
   AlertCircle, 
-  HelpCircle,
-  MessageSquare,
-  Send,
+  Activity,
+  ChevronRight,
   User,
   Calendar,
   Building,
-  Activity,
-  Layers,
-  ChevronRight,
-  X
+  Check,
+  X,
+  Plus
 } from 'lucide-react';
+import { getPriorityBadge, getStatusBadge, getTaskDueDate } from '../utils/taskDisplay';
+import TaskDrawer from '../components/TaskDrawer';
 
 export default function DashboardPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [selectedTaskId, setSelectedTaskId] = useState(null);
-  const [newCommentText, setNewCommentText] = useState('');
 
   // Fetch stats and tasks
   const { data: stats, isLoading: statsLoading, error: statsError } = useQuery({
@@ -44,40 +40,13 @@ export default function DashboardPage() {
     retry: 1,
   });
 
-  // Fetch individual task details for drawer
-  const { data: taskDetails } = useQuery({
-    queryKey: ['taskDetails', selectedTaskId],
-    queryFn: () => getTaskById(selectedTaskId),
-    enabled: !!selectedTaskId,
-  });
-
-  // Fetch comments for selected task
-  const { data: comments, refetch: refetchComments } = useQuery({
-    queryKey: ['taskComments', selectedTaskId],
-    queryFn: () => getTaskComments(selectedTaskId),
-    enabled: !!selectedTaskId,
-  });
-
-  // Add Comment Mutation
-  const addCommentMutation = useMutation({
-    mutationFn: ({ taskId, text }) => addComment(taskId, text),
-    onSuccess: () => {
-      setNewCommentText('');
-      refetchComments();
-      queryClient.invalidateQueries({ queryKey: ['taskDetails', selectedTaskId] });
-    },
-    onError: (err) => {
-      alert(!err.response ? 'Server still waking up — try again in 30 seconds.' : 'Failed to post comment.');
-    }
-  });
-
-  // Update Status Mutation
+  // Update Status Mutation (reused for approval cards)
   const updateStatusMutation = useMutation({
     mutationFn: ({ taskId, ...data }) => updateTaskStatus(taskId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['taskStats'] });
       queryClient.invalidateQueries({ queryKey: ['myTasks'] });
-      queryClient.invalidateQueries({ queryKey: ['taskDetails', selectedTaskId] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
       alert('Status updated successfully!');
     },
     onError: (err) => {
@@ -85,95 +54,38 @@ export default function DashboardPage() {
     }
   });
 
-  const handlePostComment = (e) => {
-    e.preventDefault();
-    if (!newCommentText.trim()) return;
-    addCommentMutation.mutate({ taskId: selectedTaskId, text: newCommentText });
+  const handleApprove = (taskId) => {
+    updateStatusMutation.mutate({ taskId, status: 'active_in_ch_basket' });
   };
 
-  const handleStatusChange = (status) => {
-    let payload = { status };
-    if (status === 'reopened') {
-      const reason = prompt('Please enter a reopen reason:');
-      if (!reason) return;
-      payload.reopen_reason = reason;
-    } else if (status === 'rejected') {
-      const reason = prompt('Please enter a rejection reason (optional):');
-      if (reason === null) return;
-      payload.rejection_reason = reason || undefined;
-    } else if (status === 'in_progress' && user?.role === 'rm' && taskDetails?.status === 'active_in_ch_basket') {
-      const fp = prompt('Please enter final priority (P1, P2, P3, or P4) or leave empty:');
-      if (fp === null) return; // user cancelled
-      const normalized = fp.trim().toUpperCase();
-      if (normalized) {
-        if (!['P1', 'P2', 'P3', 'P4'].includes(normalized)) {
-          alert('Final priority must be one of P1, P2, P3, or P4.');
-          return;
-        }
-        payload.final_priority = normalized;
-      }
-    }
-    updateStatusMutation.mutate({ taskId: selectedTaskId, ...payload });
+  const handleReject = (taskId) => {
+    const reason = prompt('Please enter a rejection reason (optional):');
+    if (reason === null) return; // cancelled
+    updateStatusMutation.mutate({ taskId, status: 'rejected', rejection_reason: reason || undefined });
   };
 
-  // Mock fallbacks if server isn't reachable
+  const handleSetPriority = (taskId, priority) => {
+    updateStatusMutation.mutate({ taskId, status: 'in_progress', final_priority: priority });
+  };
+
   const mockStats = {
-    open: 12,
-    overdue: 3,
-    completed: 45,
-    pendingApproval: 6,
+    open: 0,
+    overdue: 0,
+    completed: 0,
+    pendingApproval: 0,
   };
-
-  const mockTasks = [
-    {
-      _id: 'task-101',
-      id: 'task-101',
-      title: 'Review inventory reconciliation logs',
-      centre: { name: 'New Delhi Hub', code: 'DEL-01' },
-      priority: 'High',
-      status: 'Open',
-      dueDate: '2026-06-30T00:00:00.000Z',
-    },
-    {
-      _id: 'task-102',
-      id: 'task-102',
-      title: 'Sanitize student entry counters',
-      centre: { name: 'Mumbai Express', code: 'MUM-02' },
-      priority: 'Medium',
-      status: 'Pending Approval',
-      dueDate: '2026-06-25T00:00:00.000Z', // Overdue relative to 2026-06-26
-    },
-    {
-      _id: 'task-103',
-      id: 'task-103',
-      title: 'Broadband connection configuration audit',
-      centre: { name: 'Bengaluru Plaza', code: 'BLR-03' },
-      priority: 'Critical',
-      status: 'Overdue',
-      dueDate: '2026-06-24T00:00:00.000Z',
-    },
-    {
-      _id: 'task-104',
-      id: 'task-104',
-      title: 'Register local marketing posters',
-      centre: { name: 'Chennai Central', code: 'CHN-04' },
-      priority: 'Low',
-      status: 'Completed',
-      dueDate: '2026-06-28T00:00:00.000Z',
-    }
-  ];
 
   const isBackendDown = !!(statsError || tasksError);
+  
   const activeStats = stats ? {
-    open: (stats.active_in_ch_basket || 0) + (stats.acknowledged || 0) + (stats.in_progress || 0) + (stats.blocked || 0),
+    open: (stats.active_in_ch_basket || 0) + (stats.acknowledged || 0) + (stats.in_progress || 0) + (stats.blocked || 0) + (stats.reopened || 0),
     overdue: stats.overdue || 0,
     completed: stats.completed || 0,
     pendingApproval: stats.pending_manager_approval || 0
   } : mockStats;
-  const rawTasks = tasks;
-  const activeTasks = Array.isArray(rawTasks) ? rawTasks : (rawTasks?.tasks || rawTasks?.data || mockTasks);
 
-  // Render role headings
+  const activeTasks = Array.isArray(tasks) ? tasks : (tasks?.tasks || tasks?.data || []);
+
   const renderHeading = () => {
     const role = user?.role || 'hq_executive';
     const roleLabels = {
@@ -196,92 +108,11 @@ export default function DashboardPage() {
     );
   };
 
-  // Status Badge UI
-  const getStatusBadge = (status) => {
-    const styles = {
-      pending_manager_approval: 'bg-amber-50 text-amber-700 border-amber-200',
-      active_in_ch_basket: 'bg-blue-50 text-blue-700 border-blue-200',
-      acknowledged: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-      in_progress: 'bg-violet-50 text-violet-700 border-violet-200',
-      completed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      closed: 'bg-gray-50 text-gray-600 border-gray-200',
-      rejected: 'bg-red-50 text-red-700 border-red-200',
-      blocked: 'bg-orange-50 text-orange-700 border-orange-200',
-      reopened: 'bg-cyan-50 text-cyan-700 border-cyan-200',
-    };
-    const label = status ? status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : 'Unknown';
-    return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${styles[status] || 'bg-slate-50 text-slate-700 border-slate-200'}`}>
-        {label}
-      </span>
-    );
-  };
-
-  // Priority Badge UI
-  const getPriorityBadge = (priority) => {
-    const styles = {
-      'Low': 'bg-slate-100 text-slate-800',
-      'Medium': 'bg-blue-100 text-blue-800',
-      'High': 'bg-amber-100 text-amber-800',
-      'Critical': 'bg-red-100 text-red-800 font-bold',
-    };
-    return (
-      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${styles[priority] || 'bg-slate-100 text-slate-800'}`}>
-        {priority}
-      </span>
-    );
-  };
-
-  const getTaskDueDate = (t) => {
-    if (!t) return null;
-    const role = user?.role;
-    let rawDate;
-    if (role === 'rm' || role === 'centre_head' || role === 'centre_executive') {
-      rawDate = t.rm_due_date || t.manager_due_date || t.initiator_due_date || t.due_date || t.dueDate;
-    } else if (role === 'hq_manager') {
-      rawDate = t.manager_due_date || t.initiator_due_date || t.due_date || t.dueDate;
-    } else if (role === 'hq_executive') {
-      rawDate = t.initiator_due_date || t.due_date || t.dueDate;
-    } else {
-      rawDate = t.rm_due_date || t.manager_due_date || t.initiator_due_date || t.due_date || t.dueDate;
-    }
-    return rawDate ? new Date(rawDate) : null;
-  };
-
-  const getTransitions = (status, role) => {
-    const list = [];
-    if (role === 'hq_manager') {
-      if (status === 'pending_manager_approval') {
-        list.push({ status: 'active_in_ch_basket', label: 'Approve' });
-        list.push({ status: 'rejected', label: 'Reject' });
-      }
-    } else if (role === 'rm') {
-      if (status === 'active_in_ch_basket') {
-        list.push({ status: 'in_progress', label: 'Start Task' });
-        list.push({ status: 'rejected', label: 'Reject' });
-      } else if (status === 'completed' || status === 'closed') {
-        list.push({ status: 'reopened', label: 'Reopen' });
-      }
-    } else if (role === 'centre_head') {
-      if (status === 'active_in_ch_basket') {
-        list.push({ status: 'acknowledged', label: 'Acknowledge' });
-      } else if (status === 'acknowledged') {
-        list.push({ status: 'in_progress', label: 'Start Work' });
-      } else if (status === 'in_progress') {
-        list.push({ status: 'completed', label: 'Mark Completed' });
-        list.push({ status: 'blocked', label: 'Mark Blocked' });
-      }
-    } else if (role === 'centre_executive') {
-      if (status === 'in_progress') {
-        list.push({ status: 'completed', label: 'Mark Completed' });
-      }
-    } else if (role === 'leadership' || role === 'hq_executive') {
-      if (status === 'completed' || status === 'closed') {
-        list.push({ status: 'reopened', label: 'Reopen' });
-      }
-    }
-    return list;
-  };
+  // Filter pending approvals for HQ Manager
+  const pendingApprovals = activeTasks.filter(t => t.status === 'pending_manager_approval');
+  
+  // Filter active in basket for RM priority setting
+  const pendingRMPriority = activeTasks.filter(t => t.status === 'active_in_ch_basket');
 
   return (
     <div className="space-y-8 relative">
@@ -292,15 +123,13 @@ export default function DashboardPage() {
         <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm px-4 py-3 rounded-xl flex items-center gap-3">
           <span className="text-lg">⏳</span>
           <span>
-            <strong>Backend is waking up</strong> — Render free tier sleeps after inactivity. First load may take up to 30 seconds. Showing demo data in the meantime.{' '}
-            <button onClick={() => queryClient.invalidateQueries()} className="underline font-semibold cursor-pointer">Retry now</button>
+            <strong>Backend is waking up</strong> — Render free tier sleeps after inactivity. First load may take up to 30 seconds.
           </span>
         </div>
       )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        {/* Open Tasks */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div className="space-y-1">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Open Tasks</span>
@@ -311,7 +140,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Overdue Tasks */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div className="space-y-1">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Overdue Tasks</span>
@@ -322,7 +150,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Completed Tasks */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div className="space-y-1">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Completed Tasks</span>
@@ -333,12 +160,11 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Pending Approval */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div className="space-y-1">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Pending Approval</span>
             <h4 className="text-3xl font-extrabold text-amber-600">
-              {activeStats.pending_approval ?? activeStats.pendingApproval ?? 0}
+              {activeStats.pendingApproval}
             </h4>
           </div>
           <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
@@ -346,6 +172,142 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Prominent Approval Cards (HQ Manager) */}
+      {user?.role === 'hq_manager' && pendingApprovals.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-slate-900 text-lg flex items-center gap-2">
+              <Clock className="text-amber-500" size={18} />
+              <span>Waiting for your approval ({pendingApprovals.length})</span>
+            </h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {pendingApprovals.map((t) => (
+              <div key={t.id} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4 hover:shadow-md transition-all flex flex-col justify-between">
+                <div className="space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-[10px] font-mono text-slate-450 uppercase">#{t.id.slice(-6).toUpperCase()}</span>
+                    {getPriorityBadge(t.proposed_priority)}
+                  </div>
+                  <h4 className="font-bold text-slate-800 text-sm leading-tight">{t.title}</h4>
+                  <p className="text-xs text-slate-500 line-clamp-2">{t.description || 'No description provided.'}</p>
+                </div>
+                
+                <div className="border-t border-slate-100 pt-3 space-y-2 text-xs">
+                  <div className="flex items-center justify-between text-slate-500">
+                    <span className="flex items-center gap-1"><User size={13} /> Initiator:</span>
+                    <span className="font-bold text-slate-700">{t.initiated_by?.name || 'HQ Executive'}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-slate-500">
+                    <span className="flex items-center gap-1"><Calendar size={13} /> Due Date:</span>
+                    <span className="font-bold text-slate-700">
+                      {getTaskDueDate(t, user?.role) 
+                        ? getTaskDueDate(t, user?.role).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) 
+                        : '—'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-slate-500">
+                    <span className="flex items-center gap-1"><Building size={13} /> Centre:</span>
+                    <span className="font-bold text-slate-700">{t.target_centre?.name || 'All Centres'}</span>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={() => handleApprove(t.id)}
+                    className="flex-1 bg-indigo-650 hover:bg-indigo-750 text-white rounded-lg py-1.5 text-xs font-semibold flex items-center justify-center gap-1 cursor-pointer transition-all shadow-sm"
+                  >
+                    <Check size={14} /> Approve
+                  </button>
+                  <button
+                    onClick={() => handleReject(t.id)}
+                    className="flex-1 bg-white hover:bg-slate-50 text-rose-650 border border-slate-200 rounded-lg py-1.5 text-xs font-semibold flex items-center justify-center gap-1 cursor-pointer transition-all shadow-sm"
+                  >
+                    <X size={14} /> Reject
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Prominent Approval Cards (RM Priority Setting) */}
+      {user?.role === 'rm' && pendingRMPriority.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-slate-900 text-lg flex items-center gap-2">
+              <Clock className="text-indigo-600" size={18} />
+              <span>Awaiting your priority decision ({pendingRMPriority.length})</span>
+            </h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {pendingRMPriority.map((t) => (
+              <div key={t.id} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4 hover:shadow-md transition-all flex flex-col justify-between">
+                <div className="space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-[10px] font-mono text-slate-450 uppercase">#{t.id.slice(-6).toUpperCase()}</span>
+                    <span className="text-[10px] font-bold bg-amber-50 text-amber-700 px-2 py-0.5 border border-amber-200 rounded">
+                      Manager proposed: {t.proposed_priority}
+                    </span>
+                  </div>
+                  <h4 className="font-bold text-slate-800 text-sm leading-tight">{t.title}</h4>
+                  <p className="text-xs text-slate-500 line-clamp-2">{t.description || 'No description provided.'}</p>
+                </div>
+
+                <div className="border-t border-slate-100 pt-3 space-y-2 text-xs">
+                  <div className="flex items-center justify-between text-slate-500">
+                    <span className="flex items-center gap-1"><User size={13} /> Initiator:</span>
+                    <span className="font-bold text-slate-700">{t.initiated_by?.name || 'HQ Executive'}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-slate-500">
+                    <span className="flex items-center gap-1"><Calendar size={13} /> Due Date:</span>
+                    <span className="font-bold text-slate-700">
+                      {getTaskDueDate(t, user?.role) 
+                        ? getTaskDueDate(t, user?.role).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) 
+                        : '—'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-slate-500">
+                    <span className="flex items-center gap-1"><Building size={13} /> Centre:</span>
+                    <span className="font-bold text-slate-700">{t.target_centre?.name || 'All Centres'}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2 pt-2">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Set Final Priority Matrix</span>
+                  <div className="grid grid-cols-5 gap-1.5">
+                    {['P1', 'P2', 'P3', 'P4'].map((p) => {
+                      const colors = {
+                        P1: 'hover:bg-red-50 text-red-650 border-red-200 hover:border-red-500',
+                        P2: 'hover:bg-amber-50 text-amber-650 border-amber-200 hover:border-amber-500',
+                        P3: 'hover:bg-blue-50 text-blue-650 border-blue-200 hover:border-blue-500',
+                        P4: 'hover:bg-emerald-50 text-emerald-650 border-emerald-200 hover:border-emerald-500'
+                      };
+                      return (
+                        <button
+                          key={p}
+                          onClick={() => handleSetPriority(t.id, p)}
+                          className={`bg-white border rounded-lg py-1.5 text-xs font-bold text-center cursor-pointer transition-all shadow-sm ${colors[p]}`}
+                        >
+                          {p}
+                        </button>
+                      );
+                    })}
+                    <button
+                      onClick={() => handleReject(t.id)}
+                      className="bg-white border border-slate-200 hover:bg-rose-50 text-rose-650 rounded-lg py-1.5 text-xs font-bold text-center cursor-pointer transition-all hover:border-rose-500 shadow-sm"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Task List Section */}
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
@@ -377,17 +339,18 @@ export default function DashboardPage() {
                   <td className="py-3.5 px-6 font-semibold text-slate-800">
                     {t.title}
                   </td>
-                  <td className="py-3.5 px-6 text-slate-600 font-medium">
-                    {t.centre?.name || 'Unassigned Centre'}
+                  <td className="py-3.5 px-6 text-slate-650 flex items-center gap-1.5 mt-2">
+                    <Building size={13} className="text-slate-400" />
+                    <span>{t.target_centre?.name || 'All Centres'}</span>
                   </td>
                   <td className="py-3.5 px-6">
-                    {getPriorityBadge(t.priority)}
+                    {getPriorityBadge(t.final_priority || t.proposed_priority)}
                   </td>
                   <td className="py-3.5 px-6">
                     {getStatusBadge(t.status)}
                   </td>
                   <td className="py-3.5 px-6 text-slate-500 font-medium">
-                    {getTaskDueDate(t) ? getTaskDueDate(t).toLocaleDateString(undefined, {
+                    {getTaskDueDate(t, user?.role) ? getTaskDueDate(t, user?.role).toLocaleDateString(undefined, {
                       month: 'short',
                       day: 'numeric',
                       year: 'numeric'
@@ -418,134 +381,10 @@ export default function DashboardPage() {
 
       {/* Task detail drawer (Slide Over Overlay) */}
       {selectedTaskId && (
-        <div className="fixed inset-y-0 right-0 w-[450px] bg-white border-l border-slate-200 shadow-2xl z-40 flex flex-col justify-between transform transition-transform duration-300 ease-in-out overflow-hidden">
-          {/* Drawer Header */}
-          <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-            <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">
-                Task Detail: #{selectedTaskId.slice(-6).toUpperCase()}
-              </span>
-              <h3 className="font-bold text-slate-900 text-base mt-0.5 truncate max-w-[280px]">
-                {taskDetails?.title || 'Loading details...'}
-              </h3>
-            </div>
-            <button
-              onClick={() => setSelectedTaskId(null)}
-              className="text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200 p-1.5 transition-colors cursor-pointer"
-            >
-              <X size={18} />
-            </button>
-          </div>
-
-          {/* Drawer Body (Scrollable) */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            {/* Context Stats Block */}
-            <div className="space-y-4">
-              {/* Task Details */}
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400 font-semibold">Priority</span>
-                  {getPriorityBadge(taskDetails?.priority || 'Medium')}
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400 font-semibold">Status</span>
-                  {getStatusBadge(taskDetails?.status || 'Open')}
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400 font-semibold">Centre</span>
-                  <span className="font-semibold text-slate-700 flex items-center gap-1">
-                    <Building size={14} className="text-slate-400" />
-                    {taskDetails?.centre?.name || 'Loading Centre...'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400 font-semibold">Due Date</span>
-                  <span className="font-semibold text-slate-700 flex items-center gap-1">
-                    <Calendar size={14} className="text-slate-400" />
-                    {getTaskDueDate(taskDetails) ? getTaskDueDate(taskDetails).toLocaleDateString() : 'N/A'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Task Description */}
-              <div className="space-y-1.5">
-                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Description</h4>
-                <p className="text-sm text-slate-600 bg-white border border-slate-100 p-4 rounded-xl shadow-inner min-h-[60px] leading-relaxed">
-                  {taskDetails?.description || 'No detailed logs provided.'}
-                </p>
-              </div>
-
-              {/* Action: Update Task Status */}
-              <div className="space-y-2">
-                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Modify Operations Status</h4>
-                <div className="flex flex-wrap gap-2">
-                  {getTransitions(taskDetails?.status, user?.role).map((t) => (
-                    <button
-                      key={t.status}
-                      onClick={() => handleStatusChange(t.status)}
-                      className="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-xs font-semibold cursor-pointer text-center transition-all hover:border-indigo-500 hover:text-indigo-650"
-                    >
-                      {t.label}
-                    </button>
-                  ))}
-                  {getTransitions(taskDetails?.status, user?.role).length === 0 && (
-                    <span className="text-xs text-slate-400 italic">No actions available for your role.</span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Comments Stream */}
-            <div className="border-t border-slate-100 pt-6 space-y-4">
-              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <MessageSquare size={14} />
-                <span>Comments Stream ({comments?.length || 0})</span>
-              </h4>
-
-              {/* List Comments */}
-              <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1">
-                 {comments?.map((comment) => (
-                  <div key={comment._id || comment.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-slate-800 flex items-center gap-1">
-                        <User size={12} className="text-slate-400" />
-                        {comment.commented_by?.name || 'Centre Officer'}
-                      </span>
-                      <span className="text-[10px] text-slate-400">
-                        {comment.created_at ? new Date(comment.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-600 leading-normal">{comment.comment}</p>
-                  </div>
-                ))}
-
-                {!comments?.length && (
-                  <p className="text-xs text-center text-slate-400 py-4 italic">
-                    No comments found. Start the discussion below.
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Comment input footer */}
-          <form onSubmit={handlePostComment} className="p-4 border-t border-slate-100 bg-slate-50 flex items-center gap-2">
-            <input
-              type="text"
-              placeholder="Type comments to post..."
-              value={newCommentText}
-              onChange={(e) => setNewCommentText(e.target.value)}
-              className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-400"
-            />
-            <button
-              type="submit"
-              disabled={addCommentMutation.isPending}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg p-2 transition-all cursor-pointer shadow-sm flex items-center justify-center shrink-0"
-            >
-              <Send size={14} />
-            </button>
-          </form>
-        </div>
+        <TaskDrawer 
+          selectedTaskId={selectedTaskId} 
+          onClose={() => setSelectedTaskId(null)} 
+        />
       )}
     </div>
   );
