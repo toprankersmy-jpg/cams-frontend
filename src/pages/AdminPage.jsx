@@ -4,11 +4,12 @@ import {
   getAllUsers, createUser, updateUser, deactivateUser, toggleUserAdmin,
   getAllCentres, createCentre, updateCentre, deactivateCentre,
   getAllPermissions, updateRolePermission, getUserPermissions, setUserOverridePermission, deleteUserOverridePermission,
-  getUsersByRole
+  getUsersByRole,
+  getAllDepartments, createDepartment, deactivateDepartment
 } from '../api';
-import { 
-  Shield, Users, Building2, Key, UserCheck, UserMinus, Plus, Edit2, 
-  Trash2, ToggleLeft, ToggleRight, Check, X, Search, CheckSquare, Square, RefreshCw
+import {
+  Shield, Users, Building2, Key, UserCheck, UserMinus, Plus, Edit2,
+  Trash2, ToggleLeft, ToggleRight, Check, X, Search, CheckSquare, Square, RefreshCw, Briefcase
 } from 'lucide-react';
 
 const rolesList = ['hq_executive', 'hq_manager', 'rm', 'centre_head', 'centre_executive', 'leadership'];
@@ -54,14 +55,18 @@ export default function AdminPage() {
   const [selectedOverrideUser, setSelectedOverrideUser] = useState(null);
 
   // Queries
-  const { data: users, isLoading: usersLoading } = useQuery({
+  // staleTime: 0 (unlike the app-wide 5-minute default) — this page edits
+  // records directly, so a form must never pre-fill from stale cached data
+  const { data: users, isLoading: usersLoading, refetch: refetchUsers } = useQuery({
     queryKey: ['adminUsers'],
     queryFn: getAllUsers,
+    staleTime: 0,
   });
 
-  const { data: centres, isLoading: centresLoading } = useQuery({
+  const { data: centres, isLoading: centresLoading, refetch: refetchCentres } = useQuery({
     queryKey: ['adminCentres'],
     queryFn: getAllCentres,
+    staleTime: 0,
   });
 
   const { data: permissions, isLoading: permissionsLoading } = useQuery({
@@ -83,6 +88,32 @@ export default function AdminPage() {
   const { data: chUsers } = useQuery({
     queryKey: ['usersByRole', 'centre_head'],
     queryFn: () => getUsersByRole('centre_head'),
+  });
+
+  const { data: departments, isLoading: departmentsLoading } = useQuery({
+    queryKey: ['adminDepartments'],
+    queryFn: getAllDepartments,
+  });
+
+  const [newDepartmentName, setNewDepartmentName] = useState('');
+
+  const createDepartmentMutation = useMutation({
+    mutationFn: createDepartment,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['adminDepartments'] });
+      queryClient.invalidateQueries({ queryKey: ['departments'] });
+      setNewDepartmentName('');
+    },
+    onError: (err) => alert(err.response?.data?.error || 'Failed to add department')
+  });
+
+  const deactivateDepartmentMutation = useMutation({
+    mutationFn: deactivateDepartment,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['adminDepartments'] });
+      queryClient.invalidateQueries({ queryKey: ['departments'] });
+    },
+    onError: (err) => alert(err.response?.data?.error || 'Failed to remove department')
   });
 
   // User Mutation Actions
@@ -253,6 +284,15 @@ export default function AdminPage() {
           <Key size={16} />
           <span>System Permissions Matrix</span>
         </button>
+        <button
+          onClick={() => setActiveTab('departments')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
+            activeTab === 'departments' ? 'bg-indigo-50 text-indigo-700 shadow-sm' : 'text-slate-550 hover:bg-slate-50'
+          }`}
+        >
+          <Briefcase size={16} />
+          <span>Departments</span>
+        </button>
       </div>
 
       {/* Tab Contents */}
@@ -309,11 +349,13 @@ export default function AdminPage() {
                       </td>
                       <td className="py-3.5 px-6 text-right space-x-1.5">
                         <button
-                          onClick={() => {
-                            setEditingUser(u);
-                            setUserFormRole(u.role || 'hq_executive');
-                            const field = u.role === 'rm' ? 'rm_id' : u.role === 'centre_head' ? 'ch_id' : null;
-                            setSelectedCentreIds(field ? (centres || []).filter(c => c[field] === u.id).map(c => c.id) : []);
+                          onClick={async () => {
+                            const [{ data: freshUsers }, { data: freshCentres }] = await Promise.all([refetchUsers(), refetchCentres()]);
+                            const freshUser = freshUsers?.find(x => x.id === u.id) || u;
+                            setEditingUser(freshUser);
+                            setUserFormRole(freshUser.role || 'hq_executive');
+                            const field = freshUser.role === 'rm' ? 'rm_id' : freshUser.role === 'centre_head' ? 'ch_id' : null;
+                            setSelectedCentreIds(field ? (freshCentres || []).filter(c => c[field] === freshUser.id).map(c => c.id) : []);
                             setUserModalOpen(true);
                           }}
                           className="p-1.5 text-slate-400 hover:text-indigo-650 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors inline-block"
@@ -391,7 +433,11 @@ export default function AdminPage() {
                       </td>
                       <td className="py-3.5 px-6 text-right space-x-1.5">
                         <button
-                          onClick={() => { setEditingCentre(c); setCentreModalOpen(true); }}
+                          onClick={async () => {
+                            const { data: freshCentres } = await refetchCentres();
+                            setEditingCentre(freshCentres?.find(x => x.id === c.id) || c);
+                            setCentreModalOpen(true);
+                          }}
                           className="p-1.5 text-slate-400 hover:text-indigo-650 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors inline-block"
                         >
                           <Edit2 size={14} />
@@ -646,6 +692,64 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+
+        {activeTab === 'departments' && (
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-100">
+              <h3 className="font-bold text-slate-900 text-lg">Departments</h3>
+              <p className="text-xs text-slate-400 mt-1">
+                Shown in the Task creation Department field and used for HQ Manager approval routing. Adding one here makes it available everywhere immediately.
+              </p>
+            </div>
+
+            <div className="p-6 border-b border-slate-100">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!newDepartmentName.trim()) return;
+                  createDepartmentMutation.mutate(newDepartmentName.trim());
+                }}
+                className="flex gap-2 max-w-md"
+              >
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Legal, IT"
+                  value={newDepartmentName}
+                  onChange={(e) => setNewDepartmentName(e.target.value)}
+                  className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
+                <button
+                  type="submit"
+                  disabled={createDepartmentMutation.isPending}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-sm"
+                >
+                  <Plus size={14} />
+                  <span>Add Department</span>
+                </button>
+              </form>
+            </div>
+
+            <div className="divide-y divide-slate-100">
+              {departmentsLoading ? (
+                <div className="py-8 text-center text-slate-400 text-sm">Loading departments...</div>
+              ) : departments?.map((d) => (
+                <div key={d.id} className="px-6 py-3.5 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
+                  <span className="font-semibold text-slate-800 text-sm">{d.name}</span>
+                  <button
+                    onClick={() => { if (confirm(`Remove "${d.name}" from the department list? Existing tasks/users keep their value.`)) deactivateDepartmentMutation.mutate(d.id); }}
+                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer transition-colors"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+              {!departmentsLoading && !departments?.length && (
+                <div className="py-8 text-center text-slate-400 text-sm">No departments yet.</div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* User creation / edit modal */}
@@ -713,13 +817,19 @@ export default function AdminPage() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Department</label>
-                <input
-                  type="text"
+                <select
                   name="department"
                   defaultValue={editingUser?.department || ''}
-                  placeholder="e.g. Operations, IT"
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
-                />
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
+                >
+                  <option value="">None</option>
+                  {departments?.map((d) => (
+                    <option key={d.id} value={d.name}>{d.name}</option>
+                  ))}
+                </select>
+                {userFormRole === 'hq_manager' && (
+                  <p className="text-[11px] text-slate-400 mt-1">Must exactly match the department on tasks routed here (used as a fallback when the initiator has no manager assigned).</p>
+                )}
               </div>
 
               <div>

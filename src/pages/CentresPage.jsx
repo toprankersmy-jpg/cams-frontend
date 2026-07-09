@@ -40,7 +40,15 @@ export default function CentresPage() {
     enabled: !!user,
   });
 
-  const centreList = Array.isArray(centres) ? centres : (centres?.centres || centres?.data || []);
+  const allCentreList = Array.isArray(centres) ? centres : (centres?.centres || centres?.data || []);
+
+  // RM/Centre Head only see the centres they're actually assigned to, not
+  // the whole directory
+  const centreList = allCentreList.filter((c) => {
+    if (user?.role === 'rm') return c.rm_id === user.id;
+    if (user?.role === 'centre_head') return c.ch_id === user.id;
+    return true;
+  });
 
   const rmOptions = Array.from(new Set(centreList.map((c) => c.rm?.name).filter(Boolean)));
 

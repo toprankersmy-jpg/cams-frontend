@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getUnreadCount, createTask, getAllCentres, getUsersByRole, getResolvedPermissionsMe, getTaskStats } from '../api';
+import { getUnreadCount, createTask, getAllCentres, getUsersByRole, getResolvedPermissionsMe, getTaskStats, getAllDepartments } from '../api';
 import { 
   LayoutDashboard, 
   CheckSquare, 
@@ -74,6 +74,12 @@ export default function Layout() {
   const { data: centres } = useQuery({
     queryKey: ['centres'],
     queryFn: getAllCentres,
+    enabled: isTaskModalOpen,
+  });
+
+  const { data: departments } = useQuery({
+    queryKey: ['departments'],
+    queryFn: getAllDepartments,
     enabled: isTaskModalOpen,
   });
 
@@ -405,12 +411,9 @@ export default function Layout() {
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                   >
                     <option value="">Select Department</option>
-                    <option value="Operations">Operations</option>
-                    <option value="Finance">Finance</option>
-                    <option value="HR">HR</option>
-                    <option value="Marketing">Marketing</option>
-                    <option value="Academics">Academics</option>
-                    <option value="Compliance">Compliance</option>
+                    {departments?.map((d) => (
+                      <option key={d.id} value={d.name}>{d.name}</option>
+                    ))}
                   </select>
                 </div>
               </div>

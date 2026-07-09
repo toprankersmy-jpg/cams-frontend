@@ -26,7 +26,10 @@ export default function TasksPage() {
   const [centreFilter, setCentreFilter] = useState(location.state?.filterCentreId || 'all');
   const [selectedTaskId, setSelectedTaskId] = useState(null);
 
-  const canSeeAll = ['leadership', 'hq_manager', 'rm'].includes(user?.role);
+  // Only leadership gets the fully unscoped task list. HQ Manager/RM's nav
+  // pages ("My Department"/"My Region") must use the role-scoped getMyTasks
+  // — not everyone else's tasks too.
+  const canSeeAll = user?.role === 'leadership';
 
   // Fetch tasks
   const { data: tasks, isLoading, error } = useQuery({

@@ -21,6 +21,11 @@ export const addComment = (taskId, text, isSuggestion = false) => api.post(`/api
 // Centres API
 export const getAllCentres = () => api.get('/api/centres').then((res) => res.data);
 
+// Departments API
+export const getAllDepartments = () => api.get('/api/departments').then((res) => res.data);
+export const createDepartment = (name) => api.post('/api/departments', { name }).then((res) => res.data);
+export const deactivateDepartment = (id) => api.delete(`/api/departments/${id}`).then((res) => res.data);
+
 // Notifications API
 export const getMyNotifications = () => api.get('/api/notifications').then((res) => res.data);
 export const getUnreadCount = () => api.get('/api/notifications/unread-count').then((res) => res.data);
