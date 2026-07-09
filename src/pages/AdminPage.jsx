@@ -45,6 +45,7 @@ export default function AdminPage() {
   const [userModalOpen, setUserModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [userFormRole, setUserFormRole] = useState('hq_executive');
+  const [selectedCentreIds, setSelectedCentreIds] = useState([]);
   const [centreModalOpen, setCentreModalOpen] = useState(false);
   const [editingCentre, setEditingCentre] = useState(null);
 
@@ -86,9 +87,26 @@ export default function AdminPage() {
 
   // User Mutation Actions
   const saveUserMutation = useMutation({
-    mutationFn: (data) => editingUser ? updateUser(editingUser.id, data) : createUser(data),
+    mutationFn: async ({ centreIds, ...userData }) => {
+      const savedUser = editingUser ? await updateUser(editingUser.id, userData) : await createUser(userData);
+
+      if (centreIds !== undefined && (userData.role === 'rm' || userData.role === 'centre_head')) {
+        const field = userData.role === 'rm' ? 'rm_id' : 'ch_id';
+        const currentIds = new Set((centres || []).filter(c => c[field] === savedUser.id).map(c => c.id));
+        const nextIds = new Set(centreIds);
+        const toAssign = [...nextIds].filter(id => !currentIds.has(id));
+        const toClear = [...currentIds].filter(id => !nextIds.has(id));
+        await Promise.all([
+          ...toAssign.map(id => updateCentre(id, { [field]: savedUser.id })),
+          ...toClear.map(id => updateCentre(id, { [field]: null })),
+        ]);
+      }
+
+      return savedUser;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminUsers'] });
+      queryClient.invalidateQueries({ queryKey: ['adminCentres'] });
       setUserModalOpen(false);
       setEditingUser(null);
       alert('User saved successfully');
@@ -244,7 +262,7 @@ export default function AdminPage() {
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
               <h3 className="font-bold text-slate-900 text-lg">CAMS Portal Users</h3>
               <button
-                onClick={() => { setEditingUser(null); setUserFormRole('hq_executive'); setUserModalOpen(true); }}
+                onClick={() => { setEditingUser(null); setUserFormRole('hq_executive'); setSelectedCentreIds([]); setUserModalOpen(true); }}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-sm"
               >
                 <Plus size={14} />
@@ -291,7 +309,13 @@ export default function AdminPage() {
                       </td>
                       <td className="py-3.5 px-6 text-right space-x-1.5">
                         <button
-                          onClick={() => { setEditingUser(u); setUserFormRole(u.role || 'hq_executive'); setUserModalOpen(true); }}
+                          onClick={() => {
+                            setEditingUser(u);
+                            setUserFormRole(u.role || 'hq_executive');
+                            const field = u.role === 'rm' ? 'rm_id' : u.role === 'centre_head' ? 'ch_id' : null;
+                            setSelectedCentreIds(field ? (centres || []).filter(c => c[field] === u.id).map(c => c.id) : []);
+                            setUserModalOpen(true);
+                          }}
                           className="p-1.5 text-slate-400 hover:text-indigo-650 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors inline-block"
                         >
                           <Edit2 size={14} />
@@ -645,7 +669,8 @@ export default function AdminPage() {
                 const department = fd.get('department') || null;
                 const centre_id = fd.get('centre_id') || null;
                 const manager_id = fd.get('manager_id') || null;
-                saveUserMutation.mutate({ name, email, role, department, centre_id, manager_id });
+                const centreIds = (role === 'rm' || role === 'centre_head') ? selectedCentreIds : undefined;
+                saveUserMutation.mutate({ name, email, role, department, centre_id, manager_id, centreIds });
               }}
               className="p-6 space-y-4"
             >
@@ -739,6 +764,45 @@ export default function AdminPage() {
                   <p className="text-[11px] text-slate-400 mt-1">Required so approval routes to exactly this manager, not the whole department queue.</p>
                 )}
               </div>
+
+              {(userFormRole === 'rm' || userFormRole === 'centre_head') && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                    Centres Managed {userFormRole === 'rm' ? '(as Regional Manager)' : '(as Centre Head)'}
+                  </label>
+                  <div className="border border-slate-200 rounded-lg max-h-40 overflow-y-auto divide-y divide-slate-100">
+                    {centres?.map(c => {
+                      const field = userFormRole === 'rm' ? 'rm_id' : 'ch_id';
+                      const heldByOther = c[field] && c[field] !== editingUser?.id;
+                      const checked = selectedCentreIds.includes(c.id);
+                      return (
+                        <label key={c.id} className={`flex items-center justify-between gap-2 px-3 py-1.5 text-sm cursor-pointer hover:bg-slate-50 ${heldByOther && !checked ? 'opacity-60' : ''}`}>
+                          <span className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                setSelectedCentreIds(prev =>
+                                  e.target.checked ? [...prev, c.id] : prev.filter(id => id !== c.id)
+                                );
+                              }}
+                            />
+                            <span className="text-slate-700">{c.name} <span className="text-slate-400 font-mono text-[11px]">({c.code})</span></span>
+                          </span>
+                          {heldByOther && (
+                            <span className="text-[10px] text-amber-600 font-semibold shrink-0">
+                              currently: {userFormRole === 'rm' ? c.rm?.name : c.ch?.name}
+                            </span>
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    {selectedCentreIds.length} centre{selectedCentreIds.length === 1 ? '' : 's'} selected. Checking a centre already assigned to someone else reassigns it to this user.
+                  </p>
+                </div>
+              )}
 
               <div className="flex justify-end gap-3 pt-4 border-t">
                 <button type="button" onClick={() => setUserModalOpen(false)} className="px-4 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-50 cursor-pointer">
