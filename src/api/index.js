@@ -15,7 +15,7 @@ export const getTaskStats = () => api.get('/api/tasks/stats').then((res) => res.
 
 // Task Comments API
 export const getTaskComments = (taskId) => api.get(`/api/tasks/${taskId}/comments`).then((res) => res.data);
-export const addComment = (taskId, text) => api.post(`/api/tasks/${taskId}/comments`, { comment: text }).then((res) => res.data);
+export const addComment = (taskId, text, isSuggestion = false) => api.post(`/api/tasks/${taskId}/comments`, { comment: text, is_suggestion: isSuggestion }).then((res) => res.data);
 
 // Centres API
 export const getAllCentres = () => api.get('/api/centres').then((res) => res.data);

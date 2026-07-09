@@ -26,7 +26,13 @@ export const AuthProvider = ({ children }) => {
         return;
       }
       if (token.startsWith('mock-token-')) {
-        setUser(buildMockUser(token));
+        try {
+          const data = await getMe();
+          setUser(data.user || data);
+        } catch (error) {
+          console.warn('Failed to fetch mock user profile, using fallback:', error);
+          setUser(buildMockUser(token));
+        }
         setLoading(false);
         return;
       }

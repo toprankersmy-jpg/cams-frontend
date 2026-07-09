@@ -1,7 +1,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getAllTasks, getAllCentres } from '../api';
-import { BarChart3, Clock, CheckCircle2, AlertCircle, Calendar, ShieldAlert } from 'lucide-react';
+import { BarChart3, Clock, CheckCircle2, AlertCircle, ShieldAlert, Building } from 'lucide-react';
 
 export default function ReportsPage() {
   // Query all tasks
@@ -31,7 +31,7 @@ export default function ReportsPage() {
   };
 
   // Check if a task is overdue
-  const today = new Date('2026-07-09'); // Reference current system date
+  const today = new Date();
   const isOverdue = (t) => {
     if (['completed', 'closed', 'rejected'].includes(t.status)) return false;
     const dueDate = getResolvedDueDate(t);
