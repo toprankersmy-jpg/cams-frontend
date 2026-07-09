@@ -225,6 +225,50 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
                 </p>
               </div>
 
+              {/* Task Meta Grid */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-slate-50 rounded-lg px-3 py-2">
+                  <div className="text-[10px] text-slate-400 mb-0.5">Initiated By</div>
+                  <div className="text-xs font-semibold text-slate-700">{taskDetails?.initiated_by?.name || '—'}</div>
+                </div>
+                <div className="bg-slate-50 rounded-lg px-3 py-2">
+                  <div className="text-[10px] text-slate-400 mb-0.5">Approved By Manager</div>
+                  <div className="text-xs font-semibold text-slate-700">{taskDetails?.approved_by_manager?.name || 'Pending'}</div>
+                </div>
+                <div className="bg-slate-50 rounded-lg px-3 py-2">
+                  <div className="text-[10px] text-slate-400 mb-0.5">Regional Manager</div>
+                  <div className="text-xs font-semibold text-slate-700">{taskDetails?.assigned_rm?.name || '—'}</div>
+                </div>
+                <div className="bg-slate-50 rounded-lg px-3 py-2">
+                  <div className="text-[10px] text-slate-400 mb-0.5">Centre Head</div>
+                  <div className="text-xs font-semibold text-slate-700">{taskDetails?.assigned_ch?.name || '—'}</div>
+                </div>
+                <div className="bg-slate-50 rounded-lg px-3 py-2">
+                  <div className="text-[10px] text-slate-400 mb-0.5">Requested Due Date</div>
+                  <div className="text-xs font-semibold text-slate-700">
+                    {taskDetails?.initiator_due_date ? new Date(taskDetails.initiator_due_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                  </div>
+                </div>
+                <div className="bg-slate-50 rounded-lg px-3 py-2">
+                  <div className="text-[10px] text-slate-400 mb-0.5">Manager Approved Due</div>
+                  <div className="text-xs font-semibold text-slate-700">
+                    {taskDetails?.manager_due_date ? new Date(taskDetails.manager_due_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                  </div>
+                </div>
+                {taskDetails?.assigned_centre_executive?.name && (
+                  <div className="bg-slate-50 rounded-lg px-3 py-2 col-span-2">
+                    <div className="text-[10px] text-slate-400 mb-0.5">Delegated To (Centre Executive)</div>
+                    <div className="text-xs font-semibold text-slate-700">{taskDetails.assigned_centre_executive.name}</div>
+                  </div>
+                )}
+                {taskDetails?.rejection_reason && (
+                  <div className="bg-rose-50 rounded-lg px-3 py-2 col-span-2">
+                    <div className="text-[10px] text-rose-500 mb-0.5">Rejection Reason</div>
+                    <div className="text-xs font-semibold text-rose-700">{taskDetails.rejection_reason}</div>
+                  </div>
+                )}
+              </div>
+
               {/* Action: Update Task Status */}
               <div className="space-y-2">
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono">Operations Actions</h4>

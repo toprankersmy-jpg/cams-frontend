@@ -114,6 +114,28 @@ export default function DashboardPage() {
   // Filter active in basket for RM priority setting
   const pendingRMPriority = activeTasks.filter(t => t.status === 'active_in_ch_basket');
 
+  // RM-wise summary for Leadership dashboard
+  const rmSummary = (() => {
+    const map = {};
+    activeTasks.forEach((t) => {
+      const rmName = t.assigned_rm?.name || 'Unassigned';
+      if (!map[rmName]) map[rmName] = { name: rmName, centres: new Set(), open: 0, overdue: 0, completed: 0 };
+      const entry = map[rmName];
+      if (t.target_centre?.name) entry.centres.add(t.target_centre.name);
+      const isFinished = ['completed', 'closed', 'rejected'].includes(t.status);
+      if (isFinished) {
+        if (['completed', 'closed'].includes(t.status)) entry.completed += 1;
+      } else {
+        entry.open += 1;
+        const dueRaw = t.rm_due_date || t.manager_due_date || t.initiator_due_date;
+        if (dueRaw && new Date(dueRaw) < new Date()) entry.overdue += 1;
+      }
+    });
+    return Object.values(map)
+      .map((e) => ({ ...e, centres: Array.from(e.centres) }))
+      .sort((a, b) => b.open - a.open);
+  })();
+
   return (
     <div className="space-y-8 relative">
       {/* Title */}
@@ -172,6 +194,37 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* RM-wise Summary (Leadership) */}
+      {user?.role === 'leadership' && rmSummary.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="font-bold text-slate-900 text-lg">RM-wise Summary</h3>
+          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+                  <th className="py-3 px-6">Regional Manager</th>
+                  <th className="py-3 px-6">Centres</th>
+                  <th className="py-3 px-6">Open</th>
+                  <th className="py-3 px-6">Overdue</th>
+                  <th className="py-3 px-6">Completed</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-sm">
+                {rmSummary.map((rm) => (
+                  <tr key={rm.name} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="py-3.5 px-6 font-bold text-slate-800">{rm.name}</td>
+                    <td className="py-3.5 px-6 text-slate-500">{rm.centres.length ? rm.centres.join(', ') : '—'}</td>
+                    <td className="py-3.5 px-6 font-semibold text-slate-700">{rm.open}</td>
+                    <td className={`py-3.5 px-6 font-bold ${rm.overdue ? 'text-rose-600' : 'text-emerald-600'}`}>{rm.overdue}</td>
+                    <td className="py-3.5 px-6 font-bold text-emerald-600">{rm.completed}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Prominent Approval Cards (HQ Manager) */}
       {user?.role === 'hq_manager' && pendingApprovals.length > 0 && (

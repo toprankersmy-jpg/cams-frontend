@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getMyNotifications, markAllRead, markNotificationRead } from '../api';
-import { Bell, CheckCheck, Check } from 'lucide-react';
+import { Bell, CheckCheck, Check, ChevronRight } from 'lucide-react';
+import TaskDrawer from '../components/TaskDrawer';
 
 const groupByDate = (notifications) => {
   const groups = {};
@@ -32,6 +33,7 @@ const SkeletonRow = () => (
 
 export default function NotificationsPage() {
   const queryClient = useQueryClient();
+  const [selectedTaskId, setSelectedTaskId] = useState(null);
 
   const { data: notifications, isLoading, error } = useQuery({
     queryKey: ['notifications'],
@@ -123,20 +125,37 @@ export default function NotificationsPage() {
                     {new Date(n.created_at || n.createdAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
-                {!isRead && (
-                  <button
-                    onClick={() => markOneMutation.mutate(id)}
-                    disabled={markOneMutation.isPending}
-                    className="shrink-0 inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 hover:text-indigo-600 border border-slate-200 hover:border-indigo-200 px-2.5 py-1.5 rounded-lg transition-all cursor-pointer"
-                  >
-                    <Check size={12} /> Mark read
-                  </button>
-                )}
+                <div className="flex flex-col items-end gap-1.5 shrink-0">
+                  {n.task_id && (
+                    <button
+                      onClick={() => setSelectedTaskId(n.task_id)}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 hover:text-indigo-600 border border-slate-200 hover:border-indigo-200 px-2.5 py-1.5 rounded-lg transition-all cursor-pointer"
+                    >
+                      View <ChevronRight size={12} />
+                    </button>
+                  )}
+                  {!isRead && (
+                    <button
+                      onClick={() => markOneMutation.mutate(id)}
+                      disabled={markOneMutation.isPending}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 hover:text-indigo-600 border border-slate-200 hover:border-indigo-200 px-2.5 py-1.5 rounded-lg transition-all cursor-pointer"
+                    >
+                      <Check size={12} /> Mark read
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}
         </div>
       ))}
+
+      {selectedTaskId && (
+        <TaskDrawer
+          selectedTaskId={selectedTaskId}
+          onClose={() => setSelectedTaskId(null)}
+        />
+      )}
     </div>
   );
 }

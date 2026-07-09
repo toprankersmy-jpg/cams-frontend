@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getUnreadCount, createTask, getAllCentres, getUsersByRole, getResolvedPermissionsMe } from '../api';
+import { getUnreadCount, createTask, getAllCentres, getUsersByRole, getResolvedPermissionsMe, getTaskStats } from '../api';
 import { 
   LayoutDashboard, 
   CheckSquare, 
@@ -58,6 +58,18 @@ export default function Layout() {
     queryFn: getResolvedPermissionsMe,
     enabled: !!user,
   });
+
+  // Fetch role-scoped task stats for nav badges (e.g. Pending Approval, Set Priority counts)
+  const { data: navStats } = useQuery({
+    queryKey: ['taskStats'],
+    queryFn: getTaskStats,
+    enabled: !!user,
+  });
+
+  const navBadgeCounts = {
+    'page:tasks_pending': navStats?.pending_manager_approval || 0,
+    'page:priority': navStats?.active_in_ch_basket || 0,
+  };
 
   // Fetch centres and executives for the creation modal
   const { data: centres } = useQuery({
@@ -237,6 +249,7 @@ export default function Layout() {
           {navItems.map((item) => {
             const IconComponent = item.icon;
             const isActive = location.pathname === item.path;
+            const badgeCount = navBadgeCounts[item.permissionKey] || 0;
             return (
               <Link
                 key={item.label}
@@ -248,7 +261,12 @@ export default function Layout() {
                 }`}
               >
                 <IconComponent size={18} className={isActive ? 'text-indigo-600' : 'text-slate-400'} />
-                <span>{item.label}</span>
+                <span className="flex-1">{item.label}</span>
+                {badgeCount > 0 && (
+                  <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold leading-none">
+                    {badgeCount}
+                  </span>
+                )}
               </Link>
             );
           })}
