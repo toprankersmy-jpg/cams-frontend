@@ -153,13 +153,16 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
         }
       }
     } else if (role === 'centre_head') {
-      if (status === 'active_in_ch_basket') {
-        list.push({ status: 'acknowledged', label: 'Acknowledge' });
-      } else if (status === 'acknowledged') {
-        list.push({ status: 'in_progress', label: 'Start Work' });
-      } else if (status === 'in_progress') {
-        list.push({ status: 'completed', label: 'Mark Completed' });
-        list.push({ status: 'blocked', label: 'Mark Blocked' });
+      // CH actions are restricted to tasks in their own assigned centre
+      if (isOwnCentre) {
+        if (status === 'active_in_ch_basket') {
+          list.push({ status: 'acknowledged', label: 'Acknowledge' });
+        } else if (status === 'acknowledged') {
+          list.push({ status: 'in_progress', label: 'Start Work' });
+        } else if (status === 'in_progress') {
+          list.push({ status: 'completed', label: 'Mark Completed' });
+          list.push({ status: 'blocked', label: 'Mark Blocked' });
+        }
       }
     } else if (role === 'centre_executive') {
       if (status === 'in_progress') {
@@ -174,7 +177,9 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
   };
 
   const getTransitions = (status, role) => {
-    const isOwnCentre = taskDetails?.assigned_rm === user?.id;
+    const isOwnCentre = role === 'centre_head'
+      ? taskDetails?.assigned_ch === user?.id
+      : taskDetails?.assigned_rm === user?.id;
     if (!user?.is_admin) return transitionsForRole(status, role, isOwnCentre);
     // Admin bypass: union of every role's available actions for this status
     const seen = new Map();
