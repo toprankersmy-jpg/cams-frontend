@@ -135,7 +135,7 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
 
   const ALL_ROLES = ['hq_manager', 'rm', 'centre_head', 'centre_executive', 'leadership', 'hq_executive'];
 
-  const transitionsForRole = (status, role) => {
+  const transitionsForRole = (status, role, isOwnCentre) => {
     const list = [];
     if (role === 'hq_manager') {
       if (status === 'pending_manager_approval') {
@@ -143,11 +143,14 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
         list.push({ status: 'rejected', label: 'Reject' });
       }
     } else if (role === 'rm') {
-      if (status === 'active_in_ch_basket') {
-        list.push({ status: 'in_progress', label: 'Start Task' });
-        list.push({ status: 'rejected', label: 'Reject' });
-      } else if (status === 'completed' || status === 'closed') {
-        list.push({ status: 'reopened', label: 'Reopen' });
+      // RM actions are restricted to tasks in their own assigned centres
+      if (isOwnCentre) {
+        if (status === 'active_in_ch_basket') {
+          list.push({ status: 'in_progress', label: 'Start Task' });
+          list.push({ status: 'rejected', label: 'Reject' });
+        } else if (status === 'completed' || status === 'closed') {
+          list.push({ status: 'reopened', label: 'Reopen' });
+        }
       }
     } else if (role === 'centre_head') {
       if (status === 'active_in_ch_basket') {
@@ -171,11 +174,12 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
   };
 
   const getTransitions = (status, role) => {
-    if (!user?.is_admin) return transitionsForRole(status, role);
+    const isOwnCentre = taskDetails?.assigned_rm === user?.id;
+    if (!user?.is_admin) return transitionsForRole(status, role, isOwnCentre);
     // Admin bypass: union of every role's available actions for this status
     const seen = new Map();
     for (const r of ALL_ROLES) {
-      for (const t of transitionsForRole(status, r)) {
+      for (const t of transitionsForRole(status, r, true)) {
         if (!seen.has(t.status)) seen.set(t.status, t);
       }
     }
