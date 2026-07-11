@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { getMyTasks, getUsersByRole, getAllCentres, assignTask, addComment } from '../api';
 import { UserPlus, ClipboardList, Send, Loader2 } from 'lucide-react';
 
 export default function DelegatePage() {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const queryClient = useQueryClient();
   const [selectedTaskId, setSelectedTaskId] = useState('');
   const [selectedExecId, setSelectedExecId] = useState('');
@@ -61,17 +63,17 @@ export default function DelegatePage() {
       setSelectedTaskId('');
       setSelectedExecId('');
       setInstructions('');
-      alert('Task successfully delegated to Centre Executive!');
+      showToast('Task successfully delegated to Centre Executive!');
     },
     onError: (err) => {
-      alert(!err.response ? 'Server still waking up — try again in 30 seconds.' : (err.response?.data?.error || 'Failed to delegate task.'));
+      showToast(!err.response ? 'Server still waking up — try again in 30 seconds.' : (err.response?.data?.error || 'Failed to delegate task.'), 'error');
     }
   });
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!selectedTaskId || !selectedExecId) {
-      alert('Please select both a task and an executive.');
+      showToast('Please select both a task and an executive.', 'error');
       return;
     }
     delegateMutation.mutate({

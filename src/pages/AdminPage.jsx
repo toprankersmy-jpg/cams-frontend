@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useToast } from '../context/ToastContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getAllUsers, createUser, updateUser, deactivateUser, toggleUserAdmin, impersonateUser,
@@ -33,6 +34,7 @@ const actionPermissionKeys = [
 
 export default function AdminPage() {
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState('users');
 
   // Modals state
@@ -107,7 +109,7 @@ export default function AdminPage() {
       queryClient.invalidateQueries({ queryKey: ['departments'] });
       setNewDepartmentName('');
     },
-    onError: (err) => alert(err.response?.data?.error || 'Failed to add department')
+    onError: (err) => showToast(err.response?.data?.error || 'Failed to add department', 'error')
   });
 
   const deactivateDepartmentMutation = useMutation({
@@ -116,7 +118,7 @@ export default function AdminPage() {
       queryClient.invalidateQueries({ queryKey: ['adminDepartments'] });
       queryClient.invalidateQueries({ queryKey: ['departments'] });
     },
-    onError: (err) => alert(err.response?.data?.error || 'Failed to remove department')
+    onError: (err) => showToast(err.response?.data?.error || 'Failed to remove department', 'error')
   });
 
   // User Mutation Actions
@@ -160,27 +162,27 @@ export default function AdminPage() {
       queryClient.invalidateQueries({ queryKey: ['adminCentres'] });
       setUserModalOpen(false);
       setEditingUser(null);
-      alert('User saved successfully');
+      showToast('User saved successfully');
     },
-    onError: (err) => alert(err.response?.data?.error || 'Operation failed')
+    onError: (err) => showToast(err.response?.data?.error || 'Operation failed', 'error')
   });
 
   const deactivateUserMutation = useMutation({
     mutationFn: deactivateUser,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminUsers'] });
-      alert('User deactivated successfully');
+      showToast('User deactivated successfully');
     },
-    onError: (err) => alert(err.response?.data?.error || 'Operation failed')
+    onError: (err) => showToast(err.response?.data?.error || 'Operation failed', 'error')
   });
 
   const toggleAdminMutation = useMutation({
     mutationFn: ({ id, is_admin }) => toggleUserAdmin(id, is_admin),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminUsers'] });
-      alert('Admin privileges toggled successfully');
+      showToast('Admin privileges toggled successfully');
     },
-    onError: (err) => alert(err.response?.data?.error || 'Operation failed')
+    onError: (err) => showToast(err.response?.data?.error || 'Operation failed', 'error')
   });
 
   const impersonateMutation = useMutation({
@@ -192,7 +194,7 @@ export default function AdminPage() {
       localStorage.setItem('cams_token', token);
       window.location.href = '/dashboard';
     },
-    onError: (err) => alert(err.response?.data?.error || 'Failed to impersonate user')
+    onError: (err) => showToast(err.response?.data?.error || 'Failed to impersonate user', 'error')
   });
 
   // Centre Mutation Actions
@@ -202,18 +204,18 @@ export default function AdminPage() {
       queryClient.invalidateQueries({ queryKey: ['adminCentres'] });
       setCentreModalOpen(false);
       setEditingCentre(null);
-      alert('Centre saved successfully');
+      showToast('Centre saved successfully');
     },
-    onError: (err) => alert(err.response?.data?.error || 'Operation failed')
+    onError: (err) => showToast(err.response?.data?.error || 'Operation failed', 'error')
   });
 
   const deactivateCentreMutation = useMutation({
     mutationFn: deactivateCentre,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminCentres'] });
-      alert('Centre deactivated successfully');
+      showToast('Centre deactivated successfully');
     },
-    onError: (err) => alert(err.response?.data?.error || 'Operation failed')
+    onError: (err) => showToast(err.response?.data?.error || 'Operation failed', 'error')
   });
 
   // Permissions Mutation Actions
@@ -222,7 +224,7 @@ export default function AdminPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminPermissions'] });
     },
-    onError: (err) => alert(err.response?.data?.error || 'Failed to update permission')
+    onError: (err) => showToast(err.response?.data?.error || 'Failed to update permission', 'error')
   });
 
   const setOverridePermMutation = useMutation({
@@ -230,7 +232,7 @@ export default function AdminPage() {
     onSuccess: () => {
       refetchOverrides();
     },
-    onError: (err) => alert(err.response?.data?.error || 'Failed to set override')
+    onError: (err) => showToast(err.response?.data?.error || 'Failed to set override', 'error')
   });
 
   const deleteOverridePermMutation = useMutation({
@@ -238,7 +240,7 @@ export default function AdminPage() {
     onSuccess: () => {
       refetchOverrides();
     },
-    onError: (err) => alert(err.response?.data?.error || 'Failed to delete override')
+    onError: (err) => showToast(err.response?.data?.error || 'Failed to delete override', 'error')
   });
 
   // Check if role is allowed a specific key

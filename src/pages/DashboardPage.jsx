@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { 
   getTaskStats, 
   getMyTasks, 
@@ -24,6 +25,7 @@ import TaskDrawer from '../components/TaskDrawer';
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const queryClient = useQueryClient();
   const [selectedTaskId, setSelectedTaskId] = useState(null);
 
@@ -47,10 +49,10 @@ export default function DashboardPage() {
       queryClient.invalidateQueries({ queryKey: ['taskStats'] });
       queryClient.invalidateQueries({ queryKey: ['myTasks'] });
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      alert('Status updated successfully!');
+      showToast('Status updated successfully!');
     },
     onError: (err) => {
-      alert(!err.response ? 'Server still waking up — try again in 30 seconds.' : (err.response?.data?.error || 'Failed to update status.'));
+      showToast(!err.response ? 'Server still waking up — try again in 30 seconds.' : (err.response?.data?.error || 'Failed to update status.'), 'error');
     }
   });
 

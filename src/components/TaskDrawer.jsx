@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import {
   getTaskById,
   getTaskComments,
@@ -27,6 +28,7 @@ import { getPriorityBadge, getStatusBadge, getTaskDueDate } from '../utils/taskD
 
 export default function TaskDrawer({ selectedTaskId, onClose }) {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const queryClient = useQueryClient();
   const [newCommentText, setNewCommentText] = useState('');
   const [newSuggestionText, setNewSuggestionText] = useState('');
@@ -57,7 +59,7 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
       queryClient.invalidateQueries({ queryKey: ['taskDetails', selectedTaskId] });
     },
     onError: (err) => {
-      alert(!err.response ? 'Server still waking up — try again in 30 seconds.' : 'Failed to post comment.');
+      showToast(!err.response ? 'Server still waking up — try again in 30 seconds.' : 'Failed to post comment.', 'error');
     }
   });
 
@@ -69,10 +71,10 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['myTasks'] });
       queryClient.invalidateQueries({ queryKey: ['taskDetails', selectedTaskId] });
-      alert('Status updated successfully!');
+      showToast('Status updated successfully!');
     },
     onError: (err) => {
-      alert(!err.response ? 'Server still waking up — try again in 30 seconds.' : (err.response?.data?.error || 'Failed to update status.'));
+      showToast(!err.response ? 'Server still waking up — try again in 30 seconds.' : (err.response?.data?.error || 'Failed to update status.'), 'error');
     }
   });
 
@@ -83,11 +85,11 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
       queryClient.invalidateQueries({ queryKey: ['taskStats'] });
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['myTasks'] });
-      alert('Task deleted.');
+      showToast('Task deleted.');
       onClose();
     },
     onError: (err) => {
-      alert(!err.response ? 'Server still waking up — try again in 30 seconds.' : (err.response?.data?.error || 'Failed to delete task.'));
+      showToast(!err.response ? 'Server still waking up — try again in 30 seconds.' : (err.response?.data?.error || 'Failed to delete task.'), 'error');
     }
   });
 
@@ -124,7 +126,7 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
       const normalized = fp.trim().toUpperCase();
       if (normalized) {
         if (!['P1', 'P2', 'P3', 'P4'].includes(normalized)) {
-          alert('Final priority must be one of P1, P2, P3, or P4.');
+          showToast('Final priority must be one of P1, P2, P3, or P4.', 'error');
           return;
         }
         payload.final_priority = normalized;

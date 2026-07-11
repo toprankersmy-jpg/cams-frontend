@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getUnreadCount, createTask, getAllCentres, getUsersByRole, getResolvedPermissionsMe, getTaskStats, getAllDepartments } from '../api';
 import {
@@ -26,6 +27,7 @@ export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
 
   const impersonatorToken = localStorage.getItem('cams_impersonator_token');
@@ -132,20 +134,20 @@ export default function Layout() {
       setTaskDepartment('');
       setTargetType('specific_centre');
       setTargetPersonId('');
-      alert('Task created successfully!');
+      showToast('Task created successfully!');
     },
     onError: (err) => {
       const isOffline = !err.response;
-      alert(isOffline
+      showToast(isOffline
         ? 'Server is still waking up — please wait 30 seconds then try again.'
-        : (err.response?.data?.error || 'Failed to create task'));
+        : (err.response?.data?.error || 'Failed to create task'), 'error');
     }
   });
 
   const handleCreateTask = (e) => {
     e.preventDefault();
     if (!taskTitle || !taskType || !taskDepartment || !taskDueDate) {
-      alert('Please fill out all required fields');
+      showToast('Please fill out all required fields', 'error');
       return;
     }
 
@@ -161,14 +163,14 @@ export default function Layout() {
 
     if (targetType === 'specific_centre') {
       if (!taskCentre) {
-        alert('Please select a target centre.');
+        showToast('Please select a target centre.', 'error');
         return;
       }
       payload.target_centre_id = taskCentre;
       payload.assigned_centre_executive = taskAssignedTo || undefined;
     } else if (targetType === 'specific_person') {
       if (!targetPersonId) {
-        alert('Please select a target person.');
+        showToast('Please select a target person.', 'error');
         return;
       }
       payload.target_person_id = targetPersonId;
