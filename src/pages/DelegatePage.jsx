@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
-import { getMyTasks, getUsersByRole, assignTask, addComment } from '../api';
+import { getMyTasks, getUsersByRole, getAllCentres, assignTask, addComment } from '../api';
 import { UserPlus, ClipboardList, Send, Loader2 } from 'lucide-react';
 
 export default function DelegatePage() {
@@ -25,8 +25,20 @@ export default function DelegatePage() {
     retry: 1,
   });
 
+  // Fetch centres to determine which one(s) this Centre Head actually runs
+  const { data: centres, isLoading: centresLoading } = useQuery({
+    queryKey: ['centres'],
+    queryFn: getAllCentres,
+    retry: 1,
+  });
+
   const taskList = Array.isArray(tasks) ? tasks : (tasks?.tasks || tasks?.data || []);
-  const execList = Array.isArray(executives) ? executives : (executives?.users || executives?.data || []);
+  const allExecList = Array.isArray(executives) ? executives : (executives?.users || executives?.data || []);
+  const centreList = Array.isArray(centres) ? centres : (centres?.centres || centres?.data || []);
+
+  // Only offer Centre Executives who actually belong to a centre this CH runs
+  const myCentreIds = new Set(centreList.filter((c) => c.ch_id === user?.id).map((c) => c.id));
+  const execList = allExecList.filter((exec) => exec.centre_id && myCentreIds.has(exec.centre_id));
 
   // Filter tasks to active_in_ch_basket, acknowledged, or in_progress
   const delegateableTasks = taskList.filter((t) => 
@@ -69,7 +81,7 @@ export default function DelegatePage() {
     });
   };
 
-  const isLoading = tasksLoading || execsLoading;
+  const isLoading = tasksLoading || execsLoading || centresLoading;
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -124,6 +136,9 @@ export default function DelegatePage() {
                   </option>
                 ))}
               </select>
+              {execList.length === 0 && (
+                <p className="text-[11px] text-amber-600 italic">No centre executives are assigned to your centre yet.</p>
+              )}
             </div>
 
             {/* Instructions */}
@@ -141,7 +156,7 @@ export default function DelegatePage() {
             {/* Submit */}
             <button
               type="submit"
-              disabled={delegateMutation.isPending || delegateableTasks.length === 0}
+              disabled={delegateMutation.isPending || delegateableTasks.length === 0 || execList.length === 0}
               className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl py-3 font-bold text-sm transition-all cursor-pointer shadow-md hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-1.5"
             >
               {delegateMutation.isPending ? (
