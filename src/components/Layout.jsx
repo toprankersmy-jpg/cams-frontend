@@ -3,20 +3,15 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getUnreadCount, createTask, getAllCentres, getUsersByRole, getResolvedPermissionsMe, getTaskStats, getAllDepartments } from '../api';
-import { 
-  LayoutDashboard, 
-  CheckSquare, 
-  ListTodo, 
-  Building2, 
-  Clock, 
-  FolderLock, 
-  Target, 
-  MapPin, 
-  Inbox, 
-  UserPlus, 
-  UserCheck, 
-  BarChart3, 
-  Bell, 
+import {
+  LayoutDashboard,
+  CheckSquare,
+  ListTodo,
+  Building2,
+  FolderLock,
+  UserPlus,
+  BarChart3,
+  Bell,
   Plus,
   LogOut,
   User,
@@ -74,8 +69,7 @@ export default function Layout() {
   });
 
   const navBadgeCounts = {
-    'page:tasks_pending': navStats?.pending_manager_approval || 0,
-    'page:priority': navStats?.active_in_ch_basket || 0,
+    'page:tasks': (navStats?.pending_manager_approval || 0) + (navStats?.active_in_ch_basket || 0),
   };
 
   // Fetch centres and executives for the creation modal
@@ -188,20 +182,14 @@ export default function Layout() {
   };
 
   const role = user?.role || 'hq_executive';
+  const humanizeRole = (r) => (r || '').replace(/_/g, ' ');
 
   // Navigation mapping dynamically filtered by permissions
   const fullNavConfig = [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, permissionKey: 'page:dashboard' },
-    { label: 'My Tasks', path: '/tasks/my', icon: CheckSquare, permissionKey: 'page:tasks_my' },
-    { label: 'All Tasks', path: '/tasks/all', icon: ListTodo, permissionKey: 'page:tasks_all' },
-    { label: 'Pending Approval', path: '/tasks/pending', icon: Clock, permissionKey: 'page:tasks_pending' },
-    { label: 'My Department', path: '/department', icon: FolderLock, permissionKey: 'page:department' },
-    { label: 'Set Priority', path: '/priority', icon: Target, permissionKey: 'page:priority' },
-    { label: 'My Region', path: '/region', icon: MapPin, permissionKey: 'page:region' },
-    { label: 'My Basket', path: '/basket', icon: Inbox, permissionKey: 'page:basket' },
-    { label: 'Kanban Board', path: '/kanban', icon: LayoutDashboard, permissionKey: 'page:kanban' },
+    { label: 'Tasks', path: '/tasks', icon: CheckSquare, permissionKey: 'page:tasks' },
+    { label: 'Kanban Board', path: '/kanban', icon: ListTodo, permissionKey: 'page:kanban' },
     { label: 'Delegate Task', path: '/delegate', icon: UserPlus, permissionKey: 'page:delegate' },
-    { label: 'My Assigned', path: '/assigned', icon: UserCheck, permissionKey: 'page:assigned' },
     { label: 'Centres', path: '/centres', icon: Building2, permissionKey: 'page:centres' },
     { label: 'Reports', path: '/reports', icon: BarChart3, permissionKey: 'page:reports' },
     { label: 'Admin Panel', path: '/admin', icon: FolderLock, permissionKey: 'page:admin' },
@@ -214,26 +202,6 @@ export default function Layout() {
     return !!myPermissions[item.permissionKey];
   });
 
-  // Resolve dynamic header titles
-  const pathTitles = {
-    '/dashboard': 'Dashboard Overview',
-    '/tasks/my': 'My Workbasket',
-    '/tasks/all': 'All Center Tasks',
-    '/centres': 'Centres & Facilities',
-    '/tasks/pending': 'Tasks Pending Approval',
-    '/department': 'Department Head Dashboard',
-    '/priority': 'Set Task Priority Matrix',
-    '/region': 'Regional Centre Overview',
-    '/basket': 'Center Head Basket',
-    '/kanban': 'Kanban Task Board',
-    '/delegate': 'Delegate Centre Tasks',
-    '/assigned': 'Assigned Centre Tasks',
-    '/reports': 'Performance & Analytical Reports',
-    '/admin': 'CAMS Administrative Command Center'
-  };
-
-  const pageTitle = pathTitles[location.pathname] || 'Centre Activity Management';
-
   return (
     <div
       className="flex h-screen bg-[#F8FAFC] text-slate-800 font-sans overflow-hidden"
@@ -241,7 +209,7 @@ export default function Layout() {
     >
       {impersonatorToken && (
         <div className="fixed top-0 left-0 right-0 z-[100] bg-amber-500 text-white text-xs font-bold px-4 py-2 flex items-center justify-center gap-3 shadow-md">
-          <span>Viewing as {user?.name} ({user?.role?.replace(/_/g, ' ')}) — impersonation session</span>
+          <span>Viewing as {user?.name} ({user?.job_title || humanizeRole(user?.role)}) — impersonation session</span>
           <button
             onClick={handleReturnToAdmin}
             className="inline-flex items-center gap-1 bg-white/20 hover:bg-white/30 px-2.5 py-1 rounded-lg cursor-pointer transition-colors"
@@ -274,7 +242,7 @@ export default function Layout() {
               <div className="overflow-hidden">
                 <h3 className="font-semibold text-sm text-slate-800 truncate leading-tight">{user.name || 'User Profile'}</h3>
                 <span className="inline-block mt-1 text-[10px] px-2 py-0.5 rounded-full font-bold bg-indigo-100 text-indigo-700 tracking-wide uppercase border border-indigo-200">
-                  {role.replace('_', ' ')}
+                  {user.job_title || humanizeRole(role)}
                 </span>
               </div>
             </div>
@@ -348,10 +316,7 @@ export default function Layout() {
       {/* Main Content Pane */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Header bar */}
-        <header className="h-[64px] bg-white border-b border-slate-200 px-8 flex items-center justify-between z-10 shadow-sm shadow-slate-100/50">
-          <div>
-            <h2 className="text-xl font-bold text-slate-900 tracking-tight">{pageTitle}</h2>
-          </div>
+        <header className="h-[64px] bg-white border-b border-slate-200 px-8 flex items-center justify-end z-10 shadow-sm shadow-slate-100/50">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setIsTaskModalOpen(true)}

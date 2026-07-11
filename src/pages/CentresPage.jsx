@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getAllCentres, getResolvedPermissionsMe } from '../api';
+import { getAllCentres } from '../api';
 import { Search, Building2, MapPin, ArrowRight } from 'lucide-react';
 
 const SkeletonCard = () => (
@@ -33,13 +33,6 @@ export default function CentresPage() {
     retry: 1,
   });
 
-  // Fetch current user permissions to resolve correct tasks route path
-  const { data: myPermissions } = useQuery({
-    queryKey: ['myPermissions'],
-    queryFn: getResolvedPermissionsMe,
-    enabled: !!user,
-  });
-
   const allCentreList = Array.isArray(centres) ? centres : (centres?.centres || centres?.data || []);
 
   // RM/Centre Head only see the centres they're actually assigned to, not
@@ -62,37 +55,8 @@ export default function CentresPage() {
     return true;
   });
 
-  const getRoleTasksPath = () => {
-    if (user?.is_admin) return '/tasks/all';
-    
-    // Explicit role-correct mapping from briefing spec
-    const roleMap = {
-      hq_executive: '/tasks/all',
-      hq_manager: '/department',
-      rm: '/region',
-      centre_head: '/basket',
-      centre_executive: '/assigned',
-      leadership: '/tasks/all'
-    };
-
-    const mappedPath = roleMap[user?.role];
-    if (mappedPath) return mappedPath;
-
-    // Permissions check fallback
-    if (!myPermissions) return '/dashboard';
-    if (myPermissions['page:tasks_all']) return '/tasks/all';
-    if (myPermissions['page:tasks_my']) return '/tasks/my';
-    if (myPermissions['page:region']) return '/region';
-    if (myPermissions['page:department']) return '/department';
-    if (myPermissions['page:basket']) return '/basket';
-    if (myPermissions['page:assigned']) return '/assigned';
-    
-    return '/dashboard';
-  };
-
   const handleViewTasks = (centreId) => {
-    const targetPath = getRoleTasksPath();
-    navigate(targetPath, { state: { filterCentreId: centreId } });
+    navigate('/tasks', { state: { filterCentreId: centreId } });
   };
 
   return (

@@ -42,14 +42,7 @@ function ProtectedRoute() {
   // Route-level permission guard
   const pathToKey = {
     '/dashboard': 'page:dashboard',
-    '/tasks/my': 'page:tasks_my',
-    '/tasks/all': 'page:tasks_all',
-    '/tasks/pending': 'page:tasks_pending',
-    '/department': 'page:department',
-    '/priority': 'page:priority',
-    '/region': 'page:region',
-    '/basket': 'page:basket',
-    '/assigned': 'page:assigned',
+    '/tasks': 'page:tasks',
     '/delegate': 'page:delegate',
     '/centres': 'page:centres',
     '/notifications': 'page:notifications',
@@ -89,14 +82,7 @@ export default function App() {
           <Route element={<Layout />}>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/tasks/my" element={<TasksPage />} />
-            <Route path="/tasks/all" element={<TasksPage />} />
-            <Route path="/tasks/pending" element={<TasksPage />} />
-            <Route path="/department" element={<TasksPage />} />
-            <Route path="/priority" element={<TasksPage />} />
-            <Route path="/region" element={<TasksPage />} />
-            <Route path="/basket" element={<TasksPage />} />
-            <Route path="/assigned" element={<TasksPage />} />
+            <Route path="/tasks" element={<TasksPage />} />
             <Route path="/delegate" element={<DelegatePage />} />
             <Route path="/centres" element={<CentresPage />} />
             <Route path="/notifications" element={<NotificationsPage />} />

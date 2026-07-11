@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getAllUsers, createUser, updateUser, deactivateUser, toggleUserAdmin, impersonateUser,
@@ -16,18 +16,11 @@ const rolesList = ['hq_executive', 'hq_manager', 'rm', 'centre_head', 'centre_ex
 
 const pagePermissionKeys = [
   { key: 'page:dashboard', label: 'Dashboard Overview' },
-  { key: 'page:tasks_my', label: 'My Tasks Workbasket' },
-  { key: 'page:tasks_all', label: 'All Centre Tasks' },
-  { key: 'page:tasks_pending', label: 'Tasks Pending Approval' },
-  { key: 'page:department', label: 'Department Head Dashboard' },
-  { key: 'page:priority', label: 'Set Task Priority Matrix' },
-  { key: 'page:region', label: 'Regional Centre Overview' },
-  { key: 'page:basket', label: 'Centre Head Basket' },
-  { key: 'page:assigned', label: 'Assigned Centre Tasks' },
+  { key: 'page:tasks', label: 'Tasks' },
+  { key: 'page:kanban', label: 'Kanban Task Board' },
   { key: 'page:delegate', label: 'Delegate Centre Tasks' },
   { key: 'page:centres', label: 'Centres Directory' },
   { key: 'page:notifications', label: 'Notifications Hub' },
-  { key: 'page:kanban', label: 'Kanban Task Board' },
   { key: 'page:reports', label: 'Reports & Analytics' }
 ];
 
@@ -47,6 +40,7 @@ export default function AdminPage() {
   const [editingUser, setEditingUser] = useState(null);
   const [userFormRole, setUserFormRole] = useState('hq_executive');
   const [selectedCentreIds, setSelectedCentreIds] = useState([]);
+  const [pageAccess, setPageAccess] = useState({});
   const [centreModalOpen, setCentreModalOpen] = useState(false);
   const [editingCentre, setEditingCentre] = useState(null);
 
@@ -90,6 +84,15 @@ export default function AdminPage() {
     queryFn: () => getUsersByRole('centre_head'),
   });
 
+  // Resolved permissions for whichever user is currently open in the
+  // Add/Edit modal, so the Page Access checklist can seed from their actual
+  // effective state (existing override if any, else role default)
+  const { data: editingUserPerms } = useQuery({
+    queryKey: ['editingUserPermissions', editingUser?.id],
+    queryFn: () => getUserPermissions(editingUser.id),
+    enabled: !!editingUser?.id && userModalOpen,
+  });
+
   const { data: departments, isLoading: departmentsLoading } = useQuery({
     queryKey: ['adminDepartments'],
     queryFn: getAllDepartments,
@@ -118,7 +121,7 @@ export default function AdminPage() {
 
   // User Mutation Actions
   const saveUserMutation = useMutation({
-    mutationFn: async ({ centreIds, ...userData }) => {
+    mutationFn: async ({ centreIds, pageAccess: wantedPageAccess, ...userData }) => {
       const savedUser = editingUser ? await updateUser(editingUser.id, userData) : await createUser(userData);
 
       if (centreIds !== undefined && (userData.role === 'rm' || userData.role === 'centre_head')) {
@@ -131,6 +134,23 @@ export default function AdminPage() {
           ...toAssign.map(id => updateCentre(id, { [field]: savedUser.id })),
           ...toClear.map(id => updateCentre(id, { [field]: null })),
         ]);
+      }
+
+      if (wantedPageAccess) {
+        // Only write a per-user override where it actually differs from the
+        // role default; when it matches the default again (edit case), clean
+        // up any stale override left from a previous edit
+        const calls = [];
+        pagePermissionKeys.forEach(({ key }) => {
+          const wanted = !!wantedPageAccess[key];
+          const isDefault = isRoleAllowed(userData.role, key);
+          if (wanted !== isDefault) {
+            calls.push(setUserOverridePermission({ user_id: savedUser.id, permission_key: key, allowed: wanted }));
+          } else if (editingUser) {
+            calls.push(deleteUserOverridePermission(savedUser.id, key).catch(() => {}));
+          }
+        });
+        await Promise.all(calls);
       }
 
       return savedUser;
@@ -227,6 +247,23 @@ export default function AdminPage() {
     return row ? row.allowed : false;
   };
 
+  const defaultPageAccessForRole = (role) => {
+    const map = {};
+    pagePermissionKeys.forEach(({ key }) => { map[key] = isRoleAllowed(role, key); });
+    return map;
+  };
+
+  // Once the modal is editing an existing user, seed the checklist from
+  // their actual resolved state (override if one exists, else role default)
+  // rather than just the role default
+  useEffect(() => {
+    if (editingUserPerms?.resolved) {
+      const map = {};
+      pagePermissionKeys.forEach(({ key }) => { map[key] = !!editingUserPerms.resolved[key]; });
+      setPageAccess(map);
+    }
+  }, [editingUserPerms]);
+
   const handleRolePermToggle = (role, key) => {
     const currentlyAllowed = isRoleAllowed(role, key);
     toggleRolePermMutation.mutate({
@@ -314,7 +351,7 @@ export default function AdminPage() {
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
               <h3 className="font-bold text-slate-900 text-lg">CAMS Portal Users</h3>
               <button
-                onClick={() => { setEditingUser(null); setUserFormRole('hq_executive'); setSelectedCentreIds([]); setUserModalOpen(true); }}
+                onClick={() => { setEditingUser(null); setUserFormRole('hq_executive'); setSelectedCentreIds([]); setPageAccess(defaultPageAccessForRole('hq_executive')); setUserModalOpen(true); }}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-sm"
               >
                 <Plus size={14} />
@@ -328,6 +365,7 @@ export default function AdminPage() {
                   <tr className="border-b border-slate-200 bg-slate-50 text-slate-400 text-[11px] font-bold uppercase tracking-wider">
                     <th className="py-3.5 px-6">Name</th>
                     <th className="py-3.5 px-6">Email</th>
+                    <th className="py-3.5 px-6">Job Title</th>
                     <th className="py-3.5 px-6">Role</th>
                     <th className="py-3.5 px-6">Department</th>
                     <th className="py-3.5 px-6">Centre</th>
@@ -338,13 +376,14 @@ export default function AdminPage() {
                 <tbody className="divide-y divide-slate-100 text-sm">
                   {usersLoading ? (
                     <tr>
-                      <td colSpan="7" className="py-8 text-center text-slate-400">Loading user accounts...</td>
+                      <td colSpan="8" className="py-8 text-center text-slate-400">Loading user accounts...</td>
                     </tr>
                   ) : users?.map((u) => (
                     <tr key={u.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="py-3.5 px-6 font-semibold text-slate-800">{u.name}</td>
                       <td className="py-3.5 px-6 text-slate-650 font-mono text-xs">{u.email}</td>
-                      <td className="py-3.5 px-6 text-slate-600 font-semibold">{u.role?.replace('_', ' ').toUpperCase()}</td>
+                      <td className="py-3.5 px-6 text-slate-600">{u.job_title || '—'}</td>
+                      <td className="py-3.5 px-6 text-slate-600 font-semibold">{u.role?.replace(/_/g, ' ').toUpperCase()}</td>
                       <td className="py-3.5 px-6 text-slate-500">{u.department || '—'}</td>
                       <td className="py-3.5 px-6 text-slate-500">
                         {centres?.find(c => c.id === u.centre_id)?.name || '—'}
@@ -378,6 +417,10 @@ export default function AdminPage() {
                             setUserFormRole(freshUser.role || 'hq_executive');
                             const field = freshUser.role === 'rm' ? 'rm_id' : freshUser.role === 'centre_head' ? 'ch_id' : null;
                             setSelectedCentreIds(field ? (freshCentres || []).filter(c => c[field] === freshUser.id).map(c => c.id) : []);
+                            // Seed from role defaults immediately; the effect above
+                            // refines this to the user's actual resolved state once
+                            // getUserPermissions(freshUser.id) resolves
+                            setPageAccess(defaultPageAccessForRole(freshUser.role || 'hq_executive'));
                             setUserModalOpen(true);
                           }}
                           className="p-1.5 text-slate-400 hover:text-indigo-650 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors inline-block"
@@ -795,8 +838,9 @@ export default function AdminPage() {
                 const department = fd.get('department') || null;
                 const centre_id = fd.get('centre_id') || null;
                 const manager_id = fd.get('manager_id') || null;
+                const job_title = fd.get('job_title') || null;
                 const centreIds = (role === 'rm' || role === 'centre_head') ? selectedCentreIds : undefined;
-                saveUserMutation.mutate({ name, email, role, department, centre_id, manager_id, centreIds });
+                saveUserMutation.mutate({ name, email, role, department, centre_id, manager_id, job_title, centreIds, pageAccess });
               }}
               className="p-6 space-y-4"
             >
@@ -828,13 +872,25 @@ export default function AdminPage() {
                   required
                   name="role"
                   value={userFormRole}
-                  onChange={(e) => setUserFormRole(e.target.value)}
+                  onChange={(e) => { setUserFormRole(e.target.value); setPageAccess(defaultPageAccessForRole(e.target.value)); }}
                   className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
                 >
                   {rolesList.map(r => (
-                    <option key={r} value={r}>{r.replace('_', ' ').toUpperCase()}</option>
+                    <option key={r} value={r}>{r.replace(/_/g, ' ').toUpperCase()}</option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Job Title</label>
+                <input
+                  type="text"
+                  name="job_title"
+                  placeholder="e.g. CEO, Product Director, Growth Manager"
+                  defaultValue={editingUser?.job_title || ''}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">Shown everywhere this person's identity appears (sidebar, banners) instead of the raw Role above — Role stays visible only here in the Admin Panel.</p>
               </div>
 
               <div>
@@ -935,6 +991,26 @@ export default function AdminPage() {
                   </p>
                 </div>
               )}
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Page Access</label>
+                <div className="border border-slate-200 rounded-lg divide-y divide-slate-100">
+                  {pagePermissionKeys.map(({ key, label }) => (
+                    <label key={key} className="flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer hover:bg-slate-50">
+                      <input
+                        type="checkbox"
+                        checked={!!pageAccess[key]}
+                        onChange={(e) => setPageAccess(prev => ({ ...prev, [key]: e.target.checked }))}
+                      />
+                      <span className="text-slate-700">{label}</span>
+                    </label>
+                  ))}
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Pre-checked from {userFormRole.replace(/_/g, ' ')}'s role defaults — uncheck or check individual
+                  pages to grant this specific person access different from their role.
+                </p>
+              </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t">
                 <button type="button" onClick={() => setUserModalOpen(false)} className="px-4 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-50 cursor-pointer">

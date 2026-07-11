@@ -17,11 +17,20 @@ const SkeletonRow = () => (
   </tr>
 );
 
+// Default status filter per role so people still land on their relevant
+// queue (e.g. HQ Manager on pending approvals) without needing a separate
+// nav tab per queue — still just a starting point, fully overridable below.
+const defaultStatusForRole = (role) => {
+  if (role === 'hq_manager') return 'pending_manager_approval';
+  if (role === 'rm') return 'active_in_ch_basket';
+  return 'all';
+};
+
 export default function TasksPage() {
   const { user } = useAuth();
   const location = useLocation();
   const [searchText, setSearchText] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState(defaultStatusForRole(user?.role));
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [centreFilter, setCentreFilter] = useState(location.state?.filterCentreId || 'all');
   const [selectedTaskId, setSelectedTaskId] = useState(null);
