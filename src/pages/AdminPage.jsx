@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  getAllUsers, createUser, updateUser, deactivateUser, toggleUserAdmin,
+  getAllUsers, createUser, updateUser, deactivateUser, toggleUserAdmin, impersonateUser,
   getAllCentres, createCentre, updateCentre, deactivateCentre,
   getAllPermissions, updateRolePermission, getUserPermissions, setUserOverridePermission, deleteUserOverridePermission,
   getUsersByRole,
@@ -9,7 +9,7 @@ import {
 } from '../api';
 import {
   Shield, Users, Building2, Key, UserCheck, UserMinus, Plus, Edit2,
-  Trash2, ToggleLeft, ToggleRight, Check, X, Search, CheckSquare, Square, RefreshCw, Briefcase
+  Trash2, ToggleLeft, ToggleRight, Check, X, Search, CheckSquare, Square, RefreshCw, Briefcase, LogIn
 } from 'lucide-react';
 
 const rolesList = ['hq_executive', 'hq_manager', 'rm', 'centre_head', 'centre_executive', 'leadership'];
@@ -161,6 +161,18 @@ export default function AdminPage() {
       alert('Admin privileges toggled successfully');
     },
     onError: (err) => alert(err.response?.data?.error || 'Operation failed')
+  });
+
+  const impersonateMutation = useMutation({
+    mutationFn: impersonateUser,
+    onSuccess: ({ token }) => {
+      if (!localStorage.getItem('cams_impersonator_token')) {
+        localStorage.setItem('cams_impersonator_token', localStorage.getItem('cams_token'));
+      }
+      localStorage.setItem('cams_token', token);
+      window.location.href = '/dashboard';
+    },
+    onError: (err) => alert(err.response?.data?.error || 'Failed to impersonate user')
   });
 
   // Centre Mutation Actions
@@ -348,6 +360,16 @@ export default function AdminPage() {
                         </button>
                       </td>
                       <td className="py-3.5 px-6 text-right space-x-1.5">
+                        {!u.is_admin && (
+                          <button
+                            onClick={() => { if (confirm(`View the app as ${u.name}? You can return to your own account anytime via the banner that appears.`)) impersonateMutation.mutate(u.id); }}
+                            disabled={impersonateMutation.isPending}
+                            title="Impersonate (view as this user)"
+                            className="p-1.5 text-slate-400 hover:text-emerald-650 hover:bg-emerald-50 rounded-lg cursor-pointer transition-colors inline-block"
+                          >
+                            <LogIn size={14} />
+                          </button>
+                        )}
                         <button
                           onClick={async () => {
                             const [{ data: freshUsers }, { data: freshCentres }] = await Promise.all([refetchUsers(), refetchCentres()]);

@@ -17,12 +17,13 @@ import {
   UserCheck, 
   BarChart3, 
   Bell, 
-  Plus, 
-  LogOut, 
-  User, 
+  Plus,
+  LogOut,
+  User,
   X,
   PlusCircle,
-  Briefcase
+  Briefcase,
+  ArrowLeftCircle
 } from 'lucide-react';
 
 export default function Layout() {
@@ -31,6 +32,13 @@ export default function Layout() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+
+  const impersonatorToken = localStorage.getItem('cams_impersonator_token');
+  const handleReturnToAdmin = () => {
+    localStorage.setItem('cams_token', impersonatorToken);
+    localStorage.removeItem('cams_impersonator_token');
+    window.location.href = '/admin';
+  };
 
   // Task creation state
   const [taskTitle, setTaskTitle] = useState('');
@@ -227,7 +235,22 @@ export default function Layout() {
   const pageTitle = pathTitles[location.pathname] || 'Centre Activity Management';
 
   return (
-    <div className="flex h-screen bg-[#F8FAFC] text-slate-800 font-sans overflow-hidden">
+    <div
+      className="flex h-screen bg-[#F8FAFC] text-slate-800 font-sans overflow-hidden"
+      style={impersonatorToken ? { paddingTop: '34px' } : undefined}
+    >
+      {impersonatorToken && (
+        <div className="fixed top-0 left-0 right-0 z-[100] bg-amber-500 text-white text-xs font-bold px-4 py-2 flex items-center justify-center gap-3 shadow-md">
+          <span>Viewing as {user?.name} ({user?.role?.replace(/_/g, ' ')}) — impersonation session</span>
+          <button
+            onClick={handleReturnToAdmin}
+            className="inline-flex items-center gap-1 bg-white/20 hover:bg-white/30 px-2.5 py-1 rounded-lg cursor-pointer transition-colors"
+          >
+            <ArrowLeftCircle size={13} />
+            Return to Admin
+          </button>
+        </div>
+      )}
       {/* Sidebar */}
       <aside className="w-[220px] bg-white border-r border-slate-200 flex flex-col h-full z-10 overflow-hidden">
         {/* Logo */}

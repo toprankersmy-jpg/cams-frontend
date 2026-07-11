@@ -38,6 +38,7 @@ export const createUser = (data) => api.post('/api/users', data).then((res) => r
 export const updateUser = (id, data) => api.patch(`/api/users/${id}`, data).then((res) => res.data);
 export const deactivateUser = (id) => api.delete(`/api/users/${id}`).then((res) => res.data);
 export const toggleUserAdmin = (id, isAdmin) => api.patch(`/api/users/${id}/admin`, { is_admin: isAdmin }).then((res) => res.data);
+export const impersonateUser = (id) => api.post(`/api/users/${id}/impersonate`).then((res) => res.data);
 
 export const getPendingTasks = () => api.get('/api/tasks', { params: { status: 'pending_approval' } }).then((res) => res.data);
 export const markNotificationRead = (id) => api.patch(`/api/notifications/${id}/read`).then((res) => res.data);
