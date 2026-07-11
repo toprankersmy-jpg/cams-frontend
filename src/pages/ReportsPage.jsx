@@ -158,7 +158,7 @@ export default function ReportsPage() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
               <div className="space-y-1">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Tasks (June)</span>
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Tasks</span>
                 <h4 className="text-3xl font-extrabold text-slate-900">{totalTasks}</h4>
               </div>
               <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
