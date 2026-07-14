@@ -58,3 +58,7 @@ export const deleteUserOverridePermission = (userId, key) => api.delete(`/api/pe
 
 // Task priority override API
 export const overrideTaskPriority = (id, finalPriority) => api.patch(`/api/tasks/${id}/priority`, { final_priority: finalPriority }).then((res) => res.data);
+
+// Task due date extension API
+export const updateTaskDueDate = (id, newDueDate, reason) => api.patch(`/api/tasks/${id}/due-date`, { new_due_date: newDueDate, reason }).then((res) => res.data);
+

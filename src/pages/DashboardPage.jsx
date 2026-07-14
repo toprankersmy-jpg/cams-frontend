@@ -22,12 +22,14 @@ import {
 } from 'lucide-react';
 import { getPriorityBadge, getStatusBadge, getTaskDueDate } from '../utils/taskDisplay';
 import TaskDrawer from '../components/TaskDrawer';
+import ManagerApprovalBlock from '../components/ManagerApprovalBlock';
 
 export default function DashboardPage() {
   const { user } = useAuth();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
   const [selectedTaskId, setSelectedTaskId] = useState(null);
+  const [managerPriorities, setManagerPriorities] = useState({});
 
   // Fetch stats and tasks
   const { data: stats, isLoading: statsLoading, error: statsError } = useQuery({
@@ -56,8 +58,9 @@ export default function DashboardPage() {
     }
   });
 
-  const handleApprove = (taskId) => {
-    updateStatusMutation.mutate({ taskId, status: 'active_in_ch_basket' });
+  const handleApprove = (taskId, proposedPriority) => {
+    const priorityVal = managerPriorities[taskId] || proposedPriority || 'medium';
+    updateStatusMutation.mutate({ taskId, status: 'active_in_ch_basket', manager_priority: priorityVal });
   };
 
   const handleReject = (taskId) => {
@@ -129,8 +132,7 @@ export default function DashboardPage() {
         if (['completed', 'closed'].includes(t.status)) entry.completed += 1;
       } else {
         entry.open += 1;
-        const dueRaw = t.rm_due_date || t.manager_due_date || t.initiator_due_date;
-        if (dueRaw && new Date(dueRaw) < new Date()) entry.overdue += 1;
+        if (t.is_overdue) entry.overdue += 1;
       }
     });
     return Object.values(map)
@@ -268,20 +270,13 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                <div className="flex gap-2 pt-2">
-                  <button
-                    onClick={() => handleApprove(t.id)}
-                    className="flex-1 bg-indigo-650 hover:bg-indigo-750 text-white rounded-lg py-1.5 text-xs font-semibold flex items-center justify-center gap-1 cursor-pointer transition-all shadow-sm"
-                  >
-                    <Check size={14} /> Approve
-                  </button>
-                  <button
-                    onClick={() => handleReject(t.id)}
-                    className="flex-1 bg-white hover:bg-slate-50 text-rose-650 border border-slate-200 rounded-lg py-1.5 text-xs font-semibold flex items-center justify-center gap-1 cursor-pointer transition-all shadow-sm"
-                  >
-                    <X size={14} /> Reject
-                  </button>
-                </div>
+                <ManagerApprovalBlock
+                  task={t}
+                  onApprove={(priorityVal) => {
+                    updateStatusMutation.mutate({ taskId: t.id, status: 'active_in_ch_basket', manager_priority: priorityVal });
+                  }}
+                  onReject={() => handleReject(t.id)}
+                />
               </div>
             ))}
           </div>
@@ -399,7 +394,7 @@ export default function DashboardPage() {
                     <span>{t.target_centre?.name || 'All Centres'}</span>
                   </td>
                   <td className="py-3.5 px-6">
-                    {getPriorityBadge(t.final_priority || t.proposed_priority)}
+                    {getPriorityBadge(t.final_priority ?? t.manager_priority ?? t.proposed_priority)}
                   </td>
                   <td className="py-3.5 px-6">
                     {getStatusBadge(t.status)}

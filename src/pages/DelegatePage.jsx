@@ -49,12 +49,11 @@ export default function DelegatePage() {
 
   const delegateMutation = useMutation({
     mutationFn: async ({ taskId, execId, instructionsText }) => {
-      // 1. Call assign endpoint
-      const assignment = await assignTask(taskId, { assigned_centre_executive: execId });
-      // 2. Add comment if instructions are provided
-      if (instructionsText.trim()) {
-        await addComment(taskId, `Delegation Instructions: ${instructionsText.trim()}`);
-      }
+      // Call assign endpoint with instructions included
+      const assignment = await assignTask(taskId, {
+        assigned_centre_executive: execId,
+        instructions: instructionsText.trim()
+      });
       return assignment;
     },
     onSuccess: () => {
@@ -145,8 +144,9 @@ export default function DelegatePage() {
 
             {/* Instructions */}
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Instructions</label>
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Instructions *</label>
               <textarea
+                required
                 rows="4"
                 placeholder="Specify details, steps, or checklist items for the executive..."
                 value={instructions}

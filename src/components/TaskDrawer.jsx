@@ -2,12 +2,15 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import ManagerApprovalBlock from './ManagerApprovalBlock';
 import {
   getTaskById,
   getTaskComments,
   addComment,
   updateTaskStatus,
-  deleteTask
+  deleteTask,
+  getResolvedPermissionsMe,
+  updateTaskDueDate
 } from '../api';
 import {
   Clock,
@@ -32,6 +35,10 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
   const queryClient = useQueryClient();
   const [newCommentText, setNewCommentText] = useState('');
   const [newSuggestionText, setNewSuggestionText] = useState('');
+  const [submissionNote, setSubmissionNote] = useState('');
+  const [newDueDate, setNewDueDate] = useState('');
+  const [dueDateReason, setDueDateReason] = useState('');
+  const [managerPriorityInput, setManagerPriorityInput] = useState('');
 
   // Fetch individual task details
   const { data: taskDetails, isLoading: detailsLoading } = useQuery({
@@ -71,6 +78,8 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['myTasks'] });
       queryClient.invalidateQueries({ queryKey: ['taskDetails', selectedTaskId] });
+      setSubmissionNote('');
+      setManagerPriorityInput('');
       showToast('Status updated successfully!');
     },
     onError: (err) => {
@@ -142,6 +151,57 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
     }
     updateStatusMutation.mutate({ taskId: selectedTaskId, ...payload });
   };
+  const { data: myPermissions } = useQuery({
+    queryKey: ['myPermissions'],
+    queryFn: getResolvedPermissionsMe,
+    enabled: !!user,
+  });
+
+  const canExtendDueDate = myPermissions?.['task:due_date:extend'] || user?.is_admin;
+
+  const handleDueDateSubmit = async (e) => {
+    e.preventDefault();
+    if (!newDueDate || !dueDateReason.trim()) {
+      showToast('Please enter both a new due date and a reason.', 'error');
+      return;
+    }
+    try {
+      await updateTaskDueDate(selectedTaskId, newDueDate, dueDateReason.trim());
+      showToast('Due date updated successfully!');
+      setNewDueDate('');
+      setDueDateReason('');
+      queryClient.invalidateQueries({ queryKey: ['taskDetails', selectedTaskId] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['myTasks'] });
+    } catch (err) {
+      showToast(err.response?.data?.error || 'Failed to update due date.', 'error');
+    }
+  };
+
+  const getCurrentOwner = (task) => {
+    if (!task) return 'Unassigned';
+    const { status, assigned_rm, assigned_ch, assigned_centre_executive, department } = task;
+    
+    if (status === 'pending_manager_approval') {
+      return `HQ Manager (${department || 'Department'})`;
+    }
+    if (status === 'active_in_ch_basket') {
+      return assigned_rm?.name ? `RM: ${assigned_rm.name}` : 'Regional Manager (Unassigned)';
+    }
+    if (['acknowledged', 'pending_ch_review'].includes(status)) {
+      return assigned_ch?.name ? `CH: ${assigned_ch.name}` : 'Centre Head (Unassigned)';
+    }
+    if (status === 'in_progress') {
+      if (assigned_centre_executive?.name) {
+        return `Executive: ${assigned_centre_executive.name}`;
+      }
+      return assigned_ch?.name ? `CH: ${assigned_ch.name}` : 'Centre Head (Unassigned)';
+    }
+    if (['completed', 'closed', 'rejected'].includes(status)) {
+      return `None (Task ${status.replace(/_/g, ' ')})`;
+    }
+    return 'Unassigned';
+  };
 
   const ALL_ROLES = ['hq_manager', 'rm', 'centre_head', 'centre_executive', 'leadership', 'hq_executive'];
 
@@ -149,13 +209,11 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
     const list = [];
     if (role === 'hq_manager') {
       if (status === 'pending_manager_approval') {
-        list.push({ status: 'active_in_ch_basket', label: 'Approve' });
-        list.push({ status: 'rejected', label: 'Reject' });
+        // Excluded from standard buttons because HQ Manager priority recommended action is a dedicated form block
       } else if (status === 'completed' || status === 'closed') {
         list.push({ status: 'reopened', label: 'Reopen' });
       }
     } else if (role === 'rm') {
-      // RM actions are restricted to tasks in their own assigned centres
       if (isOwnCentre) {
         if (status === 'active_in_ch_basket') {
           list.push({ status: 'in_progress', label: 'Start Task' });
@@ -165,7 +223,6 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
         }
       }
     } else if (role === 'centre_head') {
-      // CH actions are restricted to tasks in their own assigned centre
       if (isOwnCentre) {
         if (status === 'active_in_ch_basket') {
           list.push({ status: 'acknowledged', label: 'Acknowledge' });
@@ -176,15 +233,13 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
           list.push({ status: 'blocked', label: 'Mark Blocked' });
         } else if (status === 'pending_ch_review') {
           list.push({ status: 'completed', label: 'Approve & Complete' });
-          list.push({ status: 'in_progress', label: 'Send Back' });
+          list.push({ status: 'in_progress', label: 'Needs Rework' });
         } else if (status === 'completed' || status === 'closed') {
           list.push({ status: 'reopened', label: 'Reopen' });
         }
       }
     } else if (role === 'centre_executive') {
-      if (status === 'in_progress') {
-        list.push({ status: 'pending_ch_review', label: 'Submit for Review' });
-      }
+      // Excluded from standard buttons because CE submission note is required and shown via custom block
     } else if (role === 'leadership' || role === 'hq_executive') {
       if (status === 'completed' || status === 'closed') {
         list.push({ status: 'reopened', label: 'Reopen' });
@@ -198,7 +253,6 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
       ? taskDetails?.assigned_ch?.id === user?.id
       : taskDetails?.assigned_rm?.id === user?.id;
     if (!user?.is_admin) return transitionsForRole(status, role, isOwnCentre);
-    // Admin bypass: union of every role's available actions for this status
     const seen = new Map();
     for (const r of ALL_ROLES) {
       for (const t of transitionsForRole(status, r, true)) {
@@ -210,7 +264,7 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
 
   if (!selectedTaskId) return null;
 
-  const currentPriority = taskDetails?.final_priority || taskDetails?.proposed_priority;
+  const currentPriority = taskDetails?.final_priority ?? taskDetails?.manager_priority ?? taskDetails?.proposed_priority;
 
   return (
     <>
@@ -266,10 +320,31 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
               {/* Context Stats Block */}
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3">
                 <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-400 font-semibold">Current Owner</span>
+                  <span className="font-bold text-indigo-750 bg-indigo-50 border border-indigo-100 rounded px-2 py-0.5 text-[11px] uppercase">
+                    {getCurrentOwner(taskDetails)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs border-t border-slate-100/50 pt-2">
                   <span className="text-slate-400 font-semibold">Priority</span>
                   {getPriorityBadge(currentPriority)}
                 </div>
-                <div className="flex items-center justify-between text-xs">
+                {(() => {
+                  const pHistory = [];
+                  if (taskDetails?.proposed_priority) pHistory.push(`Proposed: ${taskDetails.proposed_priority}`);
+                  if (taskDetails?.manager_priority) pHistory.push(`Manager: ${taskDetails.manager_priority}`);
+                  if (taskDetails?.final_priority) pHistory.push(`Final: ${taskDetails.final_priority}`);
+                  if (pHistory.length > 1) {
+                    return (
+                      <div className="text-[10px] text-slate-400 font-medium pb-1 flex items-center gap-1.5 flex-wrap">
+                        <span className="font-semibold text-slate-500">History:</span>
+                        <span>{pHistory.join(' → ')}</span>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+                <div className="flex items-center justify-between text-xs border-t border-slate-100/50 pt-2">
                   <span className="text-slate-400 font-semibold">Status</span>
                   {getStatusBadge(taskDetails?.status)}
                 </div>
@@ -343,8 +418,14 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
                 )}
                 {taskDetails?.review_feedback && (
                   <div className="bg-amber-50 rounded-lg px-3 py-2 col-span-2">
-                    <div className="text-[10px] text-amber-600 mb-0.5">Sent Back — Feedback</div>
+                    <div className="text-[10px] text-amber-600 mb-0.5">Needs Rework — Feedback</div>
                     <div className="text-xs font-semibold text-amber-700">{taskDetails.review_feedback}</div>
+                  </div>
+                )}
+                {taskDetails?.submission_note && (
+                  <div className="bg-indigo-50 rounded-lg px-3 py-2 col-span-2">
+                    <div className="text-[10px] text-indigo-650 mb-0.5">Executive Submission Note</div>
+                    <div className="text-xs font-semibold text-indigo-700">{taskDetails.submission_note}</div>
                   </div>
                 )}
                 {taskDetails?.completion_note && (
@@ -356,8 +437,57 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
               </div>
 
               {/* Action: Update Task Status */}
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono">Operations Actions</h4>
+
+                {/* Dedicated HQ Manager Approval Block */}
+                {((user?.role === 'hq_manager' || user?.is_admin) && taskDetails?.status === 'pending_manager_approval') && (
+                  <ManagerApprovalBlock
+                    task={taskDetails}
+                    onApprove={(priorityVal) => {
+                      updateStatusMutation.mutate({
+                        taskId: selectedTaskId,
+                        status: 'active_in_ch_basket',
+                        manager_priority: priorityVal
+                      });
+                    }}
+                    onReject={() => handleStatusChange('rejected')}
+                  />
+                )}
+
+                {/* Dedicated Centre Executive Submit Block */}
+                {(user?.role === 'centre_executive' && taskDetails?.status === 'in_progress') && (
+                  <div className="space-y-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Submission Note *</label>
+                    <textarea
+                      required
+                      rows="3"
+                      placeholder="Describe the completion details..."
+                      value={submissionNote}
+                      onChange={(e) => setSubmissionNote(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-400 resize-none leading-relaxed"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!submissionNote.trim()) {
+                          showToast('Submission note is required', 'error');
+                          return;
+                        }
+                        updateStatusMutation.mutate({
+                          taskId: selectedTaskId,
+                          status: 'pending_ch_review',
+                          submission_note: submissionNote.trim()
+                        });
+                      }}
+                      className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-2 px-3 text-xs font-bold transition-all cursor-pointer shadow-sm"
+                    >
+                      Submit for Review
+                    </button>
+                  </div>
+                )}
+
+                {/* Standard buttons for other transitions */}
                 <div className="flex flex-wrap gap-2">
                   {getTransitions(taskDetails?.status, user?.role).map((t) => (
                     <button
@@ -368,35 +498,102 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
                       {t.label}
                     </button>
                   ))}
-                  {getTransitions(taskDetails?.status, user?.role).length === 0 && (
+                  {getTransitions(taskDetails?.status, user?.role).length === 0 && 
+                   !((user?.role === 'hq_manager' || user?.is_admin) && taskDetails?.status === 'pending_manager_approval') && 
+                   !(user?.role === 'centre_executive' && taskDetails?.status === 'in_progress') && (
                     <span className="text-xs text-slate-400 italic">No operational actions available for your role.</span>
                   )}
                 </div>
               </div>
 
+              {/* Propose new due date block */}
+              {canExtendDueDate && (
+                <div className="border-t border-slate-100 pt-6 space-y-3">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 font-mono">
+                    <Calendar size={14} className="text-indigo-600" />
+                    <span>Propose New Due Date</span>
+                  </h4>
+                  <form onSubmit={handleDueDateSubmit} className="space-y-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">New Due Date *</label>
+                        <input
+                          type="date"
+                          required
+                          value={newDueDate}
+                          onChange={(e) => setNewDueDate(e.target.value)}
+                          className="w-full px-2 py-1 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-700 font-semibold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Reason *</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="Reason for change..."
+                          value={dueDateReason}
+                          onChange={(e) => setDueDateReason(e.target.value)}
+                          className="w-full px-2 py-1 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-700 font-medium"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      type="submit"
+                      className="w-full bg-slate-900 hover:bg-black text-white rounded-lg py-1.5 text-xs font-bold transition-all cursor-pointer shadow-sm text-center"
+                    >
+                      Update Due Date
+                    </button>
+                  </form>
+                </div>
+              )}
+
               {/* Activity Log / Timeline */}
-              {taskDetails?.status_history && taskDetails.status_history.length > 0 && (
+              {taskDetails?.activity_log && taskDetails.activity_log.length > 0 && (
                 <div className="border-t border-slate-100 pt-6 space-y-4">
                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 font-mono">
                     <Activity size={14} className="text-slate-400" />
                     <span>Activity Log</span>
                   </h4>
                   <div className="relative pl-6 space-y-5 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-150">
-                    {taskDetails.status_history.map((log) => (
-                      <div key={log.id} className="relative group">
-                        <div className="absolute -left-[20px] top-1.5 w-3 h-3 rounded-full border-2 border-indigo-500 bg-white group-hover:bg-indigo-500 transition-colors" />
-                        <div className="space-y-1">
-                          <p className="text-xs text-slate-700 leading-relaxed font-semibold">
-                            {log.comment || `Status updated from ${log.from_status || 'null'} to ${log.to_status}`}
-                          </p>
-                          <div className="flex items-center gap-2 text-[10px] text-slate-400 font-medium">
-                            <span className="font-bold text-slate-500">By: {log.changed_by?.name || 'System'}</span>
-                            <span>•</span>
-                            <span>{new Date(log.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                    {taskDetails.activity_log.map((log, index) => {
+                      let text = '';
+                      let iconPrefix = '⚪';
+                      if (log.type === 'status') {
+                        text = log.comment || `Status updated from ${log.from_status || 'null'} to ${log.to_status}`;
+                        iconPrefix = '🔄';
+                      } else if (log.type === 'priority') {
+                        text = `Priority updated: ${log.previous_priority || 'None'} → ${log.new_priority}`;
+                        iconPrefix = '⭐';
+                      } else if (log.type === 'due_date') {
+                        const fieldLabel = log.field === 'initiator_due_date' ? 'Initiator' : (log.field === 'manager_due_date' ? 'Manager' : 'RM');
+                        text = `Due date (${fieldLabel}): ${log.previous_due_date || 'None'} → ${log.new_due_date}`;
+                        iconPrefix = '📅';
+                      }
+
+                      return (
+                        <div key={log.id || index} className="relative group">
+                          <div className="absolute -left-[20px] top-1.5 w-3 h-3 rounded-full border-2 border-indigo-500 bg-white group-hover:bg-indigo-500 transition-colors" />
+                          <div className="space-y-1">
+                            <p className="text-xs text-slate-700 leading-relaxed font-semibold">
+                              <span className="mr-1.5">{iconPrefix}</span>
+                              {text}
+                            </p>
+                            <div className="flex items-center gap-2 text-[10px] text-slate-400 font-medium">
+                              <span className="font-bold text-slate-500 flex items-center gap-1 flex-wrap">
+                                By: {log.changed_by?.name || 'System'}
+                                {log.changed_by?.role && (
+                                  <span className="ml-1 inline-block text-[8px] px-1 py-0.2 bg-slate-100 border border-slate-200 rounded text-slate-500 uppercase font-mono font-bold leading-none scale-90">
+                                    {log.changed_by.role.replace(/_/g, ' ')}
+                                  </span>
+                                )}
+                              </span>
+                              <span>•</span>
+                              <span>{new Date(log.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}

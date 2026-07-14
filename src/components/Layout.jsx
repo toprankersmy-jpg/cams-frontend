@@ -43,11 +43,10 @@ export default function Layout() {
   const [taskCentre, setTaskCentre] = useState('');
   const [taskPriority, setTaskPriority] = useState('medium');
   const [taskDueDate, setTaskDueDate] = useState('');
-  const [taskAssignedTo, setTaskAssignedTo] = useState('');
   const [taskType, setTaskType] = useState('');
-  const [taskDepartment, setTaskDepartment] = useState('');
+  const [taskDepartment, setTaskDepartment] = useState(user?.department || '');
   const [targetType, setTargetType] = useState('specific_centre');
-  const [targetPersonId, setTargetPersonId] = useState('');
+  const [targetDepartment, setTargetDepartment] = useState('');
 
   // Fetch unread notifications count
   const { data: unreadData } = useQuery({
@@ -87,36 +86,7 @@ export default function Layout() {
     enabled: isTaskModalOpen,
   });
 
-  const { data: executives } = useQuery({
-    queryKey: ['executives'],
-    queryFn: () => getUsersByRole('centre_executive'),
-    enabled: isTaskModalOpen,
-  });
 
-  const { data: centreHeads } = useQuery({
-    queryKey: ['centreHeads'],
-    queryFn: () => getUsersByRole('centre_head'),
-    enabled: isTaskModalOpen,
-  });
-
-  const { data: regionalManagers } = useQuery({
-    queryKey: ['regionalManagers'],
-    queryFn: () => getUsersByRole('rm'),
-    enabled: isTaskModalOpen,
-  });
-
-  const { data: hqManagers } = useQuery({
-    queryKey: ['hqManagers'],
-    queryFn: () => getUsersByRole('hq_manager'),
-    enabled: isTaskModalOpen,
-  });
-
-  const targetUsersList = [
-    ...(executives || []),
-    ...(centreHeads || []),
-    ...(regionalManagers || []),
-    ...(hqManagers || [])
-  ];
 
   const createTaskMutation = useMutation({
     mutationFn: createTask,
@@ -129,11 +99,10 @@ export default function Layout() {
       setTaskCentre('');
       setTaskPriority('medium');
       setTaskDueDate('');
-      setTaskAssignedTo('');
       setTaskType('');
-      setTaskDepartment('');
+      setTaskDepartment(user?.department || '');
       setTargetType('specific_centre');
-      setTargetPersonId('');
+      setTargetDepartment('');
       showToast('Task created successfully!');
     },
     onError: (err) => {
@@ -146,7 +115,8 @@ export default function Layout() {
 
   const handleCreateTask = (e) => {
     e.preventDefault();
-    if (!taskTitle || !taskType || !taskDepartment || !taskDueDate) {
+    const finalDepartment = user?.department || taskDepartment;
+    if (!taskTitle || !taskType || !finalDepartment || !taskDueDate) {
       showToast('Please fill out all required fields', 'error');
       return;
     }
@@ -155,7 +125,7 @@ export default function Layout() {
       title: taskTitle,
       task_type: taskType,
       target_type: targetType,
-      department: taskDepartment,
+      department: finalDepartment,
       description: taskDesc || undefined,
       proposed_priority: taskPriority || undefined,
       initiator_due_date: taskDueDate || undefined,
@@ -167,15 +137,12 @@ export default function Layout() {
         return;
       }
       payload.target_centre_id = taskCentre;
-      payload.assigned_centre_executive = taskAssignedTo || undefined;
-    } else if (targetType === 'specific_person') {
-      if (!targetPersonId) {
-        showToast('Please select a target person.', 'error');
+    } else if (targetType === 'team_department') {
+      if (!targetDepartment) {
+        showToast('Please select a target department.', 'error');
         return;
       }
-      payload.target_person_id = targetPersonId;
-    } else if (targetType === 'team_department') {
-      payload.target_department = taskDepartment;
+      payload.target_department = targetDepartment;
     } else if (targetType === 'all_centres') {
       payload.is_general = true;
     }
@@ -395,17 +362,26 @@ export default function Layout() {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Department *</label>
-                  <select
-                    required
-                    value={taskDepartment}
-                    onChange={(e) => setTaskDepartment(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                  >
-                    <option value="">Select Department</option>
-                    {departments?.map((d) => (
-                      <option key={d.id} value={d.name}>{d.name}</option>
-                    ))}
-                  </select>
+                  {user?.department ? (
+                    <input
+                      type="text"
+                      readOnly
+                      value={user.department}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-100 text-slate-500 cursor-not-allowed"
+                    />
+                  ) : (
+                    <select
+                      required
+                      value={taskDepartment}
+                      onChange={(e) => setTaskDepartment(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                    >
+                      <option value="">Select Department</option>
+                      {departments?.map((d) => (
+                        <option key={d.id} value={d.name}>{d.name}</option>
+                      ))}
+                    </select>
+                  )}
                 </div>
               </div>
 
@@ -418,7 +394,6 @@ export default function Layout() {
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-semibold"
                   >
                     <option value="specific_centre">Specific centre</option>
-                    <option value="specific_person">Specific person</option>
                     <option value="all_centres">All centres</option>
                     <option value="team_department">Team / Department</option>
                   </select>
@@ -447,29 +422,21 @@ export default function Layout() {
                     </>
                   )}
 
-                  {targetType === 'specific_person' && (
+                  {targetType === 'team_department' && (
                     <>
-                      <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Person Name *</label>
+                      <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Target Department *</label>
                       <select
                         required
-                        value={targetPersonId}
-                        onChange={(e) => setTargetPersonId(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-semibold"
+                        value={targetDepartment}
+                        onChange={(e) => setTargetDepartment(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                       >
-                        <option value="">Select Person</option>
-                        {targetUsersList.map((u) => (
-                          <option key={u.id} value={u.id}>
-                            {u.name} ({u.role.replace(/_/g, ' ')} — {u.department || 'No dept'})
-                          </option>
+                        <option value="">Select Target Department</option>
+                        {departments?.map((d) => (
+                          <option key={d.id} value={d.name}>{d.name}</option>
                         ))}
                       </select>
                     </>
-                  )}
-
-                  {targetType === 'team_department' && (
-                    <p className="text-xs text-slate-500 italic pt-1">
-                      Routes to the {taskDepartment || 'selected'} department's manager, who will route it further within their team.
-                    </p>
                   )}
 
                   {targetType === 'all_centres' && (
@@ -511,28 +478,6 @@ export default function Layout() {
                   />
                 </div>
               </div>
-
-              {targetType === 'specific_centre' && (
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Assignee</label>
-                  <select
-                    value={taskAssignedTo}
-                    onChange={(e) => setTaskAssignedTo(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                  >
-                    <option value="">Unassigned (Open Pool)</option>
-                    {executives?.map((exe) => (
-                      <option key={exe._id || exe.id} value={exe._id || exe.id}>
-                        {exe.name} ({exe.email})
-                      </option>
-                    ))}
-                    {!executives?.length && (
-                      <option value="">No assignees loaded yet</option>
-                    )}
-                  </select>
-                </div>
-              )}
-
               </div>
 
               {/* Submit / Cancel Actions */}

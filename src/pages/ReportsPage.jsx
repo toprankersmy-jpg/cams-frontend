@@ -26,17 +26,14 @@ export default function ReportsPage() {
 
   // Resolve the task's due date
   const getResolvedDueDate = (t) => {
-    const rawDate = t.rm_due_date || t.manager_due_date || t.initiator_due_date || t.due_date || t.dueDate;
-    return rawDate ? new Date(rawDate) : null;
+    return t.effective_due_date ? new Date(t.effective_due_date) : null;
   };
 
   // Check if a task is overdue
-  const today = new Date();
   const isOverdue = (t) => {
-    if (['completed', 'closed', 'rejected'].includes(t.status)) return false;
-    const dueDate = getResolvedDueDate(t);
-    return dueDate && dueDate < today;
+    return !!t.is_overdue;
   };
+
 
   // Calculate aggregates
   const totalTasks = taskList.length;
@@ -112,6 +109,9 @@ export default function ReportsPage() {
       }
     }
   });
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
   const delayedCentres = Object.values(delayedCentreMap)
     .map((c) => {

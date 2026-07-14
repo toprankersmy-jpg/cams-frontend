@@ -60,20 +60,8 @@ export const getStatusBadge = (status) => {
   );
 };
 
-/**
- * Resolves the correct due date to show to the user depending on their role.
- */
-export const getTaskDueDate = (t, role) => {
-  if (!t) return null;
-  let rawDate;
-  if (role === 'rm' || role === 'centre_head' || role === 'centre_executive') {
-    rawDate = t.rm_due_date || t.manager_due_date || t.initiator_due_date || t.due_date || t.dueDate;
-  } else if (role === 'hq_manager') {
-    rawDate = t.manager_due_date || t.initiator_due_date || t.due_date || t.dueDate;
-  } else if (role === 'hq_executive') {
-    rawDate = t.initiator_due_date || t.due_date || t.dueDate;
-  } else {
-    rawDate = t.rm_due_date || t.manager_due_date || t.initiator_due_date || t.due_date || t.dueDate;
-  }
-  return rawDate ? new Date(rawDate) : null;
+export const getTaskDueDate = (t) => {
+  if (!t || !t.effective_due_date) return null;
+  return new Date(t.effective_due_date);
 };
+
