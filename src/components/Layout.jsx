@@ -339,14 +339,14 @@ export default function Layout() {
       {/* New Task Overlay Modal */}
       {isTaskModalOpen && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all">
-          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden transform animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden transform animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
             {/* Modal Header */}
-            <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center shrink-0">
               <div className="flex items-center gap-2">
                 <PlusCircle className="text-indigo-600" size={20} />
                 <h3 className="font-bold text-slate-800 text-base">Create Centre Task</h3>
               </div>
-              <button 
+              <button
                 onClick={() => setIsTaskModalOpen(false)}
                 className="text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 p-1.5 transition-colors cursor-pointer"
               >
@@ -355,7 +355,8 @@ export default function Layout() {
             </div>
 
             {/* Modal Form */}
-            <form onSubmit={handleCreateTask} className="p-6 space-y-4">
+            <form onSubmit={handleCreateTask} className="flex flex-col flex-1 min-h-0">
+              <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Task Title *</label>
                 <input
@@ -532,8 +533,10 @@ export default function Layout() {
                 </div>
               )}
 
+              </div>
+
               {/* Submit / Cancel Actions */}
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsTaskModalOpen(false)}

@@ -822,8 +822,8 @@ export default function AdminPage() {
       {/* User creation / edit modal */}
       {userModalOpen && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-slate-200 overflow-hidden transform animate-in fade-in zoom-in-95 duration-200">
-            <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-slate-200 overflow-hidden transform animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center shrink-0">
               <h3 className="font-bold text-slate-800 text-base">{editingUser ? 'Edit CAMS User' : 'Create CAMS User'}</h3>
               <button onClick={() => setUserModalOpen(false)} className="text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 p-1.5 cursor-pointer">
                 <X size={18} />
@@ -844,8 +844,9 @@ export default function AdminPage() {
                 const centreIds = (role === 'rm' || role === 'centre_head') ? selectedCentreIds : undefined;
                 saveUserMutation.mutate({ name, email, role, department, centre_id, manager_id, job_title, centreIds, pageAccess });
               }}
-              className="p-6 space-y-4"
+              className="flex flex-col flex-1 min-h-0"
             >
+              <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Full Name *</label>
                 <input
@@ -1013,8 +1014,9 @@ export default function AdminPage() {
                   pages to grant this specific person access different from their role.
                 </p>
               </div>
+              </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t">
+              <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-100 shrink-0">
                 <button type="button" onClick={() => setUserModalOpen(false)} className="px-4 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-50 cursor-pointer">
                   Cancel
                 </button>
@@ -1030,8 +1032,8 @@ export default function AdminPage() {
       {/* Centre creation / edit modal */}
       {centreModalOpen && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-slate-200 overflow-hidden transform animate-in fade-in zoom-in-95 duration-200">
-            <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-slate-200 overflow-hidden transform animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center shrink-0">
               <h3 className="font-bold text-slate-800 text-base">{editingCentre ? 'Edit Centre' : 'Create Centre'}</h3>
               <button onClick={() => setCentreModalOpen(false)} className="text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 p-1.5 cursor-pointer">
                 <X size={18} />
@@ -1049,8 +1051,9 @@ export default function AdminPage() {
                 const ch_id = fd.get('ch_id') || null;
                 saveCentreMutation.mutate({ name, code, model, rm_id, ch_id });
               }}
-              className="p-6 space-y-4"
+              className="flex flex-col flex-1 min-h-0"
             >
+              <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Centre Name *</label>
                 <input
@@ -1124,8 +1127,9 @@ export default function AdminPage() {
                   <p className="text-[11px] text-amber-600 mt-1">No Centre Head users exist yet — create one first, or tasks against this centre won't route anywhere.</p>
                 )}
               </div>
+              </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t">
+              <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-100 shrink-0">
                 <button type="button" onClick={() => setCentreModalOpen(false)} className="px-4 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-50 cursor-pointer">
                   Cancel
                 </button>
