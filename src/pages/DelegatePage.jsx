@@ -13,24 +13,36 @@ export default function DelegatePage() {
   const [selectedExecId, setSelectedExecId] = useState('');
   const [instructions, setInstructions] = useState('');
 
-  // Fetch Centre Head's tasks
+  const isManager = user?.role === 'hq_manager';
+
+  // Fetch relevant tasks
   const { data: tasks, isLoading: tasksLoading } = useQuery({
     queryKey: ['myTasks'],
     queryFn: getMyTasks,
     retry: 1,
   });
 
-  // Fetch all centre executives
+  // Fetch all centre executives (for CH users)
   const { data: executives, isLoading: execsLoading } = useQuery({
     queryKey: ['executives'],
     queryFn: () => getUsersByRole('centre_executive'),
+    enabled: !isManager,
     retry: 1,
   });
 
-  // Fetch centres to determine which one(s) this Centre Head actually runs
+  // Fetch all hq executives (for Manager users)
+  const { data: hqExecutives, isLoading: hqLoading } = useQuery({
+    queryKey: ['hqExecutives'],
+    queryFn: () => getUsersByRole('hq_executive'),
+    enabled: isManager,
+    retry: 1,
+  });
+
+  // Fetch centres (for CH users)
   const { data: centres, isLoading: centresLoading } = useQuery({
     queryKey: ['centres'],
     queryFn: getAllCentres,
+    enabled: !isManager,
     retry: 1,
   });
 
@@ -38,22 +50,30 @@ export default function DelegatePage() {
   const allExecList = Array.isArray(executives) ? executives : (executives?.users || executives?.data || []);
   const centreList = Array.isArray(centres) ? centres : (centres?.centres || centres?.data || []);
 
-  // Only offer Centre Executives who actually belong to a centre this CH runs
-  const myCentreIds = new Set(centreList.filter((c) => c.ch_id === user?.id).map((c) => c.id));
-  const execList = allExecList.filter((exec) => exec.centre_id && myCentreIds.has(exec.centre_id));
+  let execList = [];
+  if (isManager) {
+    const allHqList = Array.isArray(hqExecutives) ? hqExecutives : (hqExecutives?.users || hqExecutives?.data || []);
+    execList = allHqList.filter((emp) => emp.department === user?.department);
+  } else {
+    const myCentreIds = new Set(centreList.filter((c) => c.ch_id === user?.id).map((c) => c.id));
+    execList = allExecList.filter((exec) => exec.centre_id && myCentreIds.has(exec.centre_id));
+  }
 
-  // Filter tasks to active_in_ch_basket, acknowledged, or in_progress
-  const delegateableTasks = taskList.filter((t) => 
-    ['active_in_ch_basket', 'acknowledged', 'in_progress'].includes(t.status)
-  );
+  // Filter delegateable tasks
+  const delegateableTasks = taskList.filter((t) => {
+    if (isManager) {
+      return t.department === user?.department && !t.assigned_person_id;
+    } else {
+      return ['active_in_ch_basket', 'acknowledged', 'in_progress'].includes(t.status);
+    }
+  });
 
   const delegateMutation = useMutation({
     mutationFn: async ({ taskId, execId, instructionsText }) => {
-      // Call assign endpoint with instructions included
-      const assignment = await assignTask(taskId, {
-        assigned_centre_executive: execId,
-        instructions: instructionsText.trim()
-      });
+      const payload = isManager
+        ? { assigned_person_id: execId, instructions: instructionsText.trim() }
+        : { assigned_centre_executive: execId, instructions: instructionsText.trim() };
+      const assignment = await assignTask(taskId, payload);
       return assignment;
     },
     onSuccess: () => {
@@ -62,7 +82,7 @@ export default function DelegatePage() {
       setSelectedTaskId('');
       setSelectedExecId('');
       setInstructions('');
-      showToast('Task successfully delegated to Centre Executive!');
+      showToast(isManager ? 'Task successfully delegated to department employee!' : 'Task successfully delegated to Centre Executive!');
     },
     onError: (err) => {
       showToast(!err.response ? 'Server still waking up — try again in 30 seconds.' : (err.response?.data?.error || 'Failed to delegate task.'), 'error');
@@ -72,7 +92,7 @@ export default function DelegatePage() {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!selectedTaskId || !selectedExecId) {
-      showToast('Please select both a task and an executive.', 'error');
+      showToast('Please select both a task and an assignee.', 'error');
       return;
     }
     delegateMutation.mutate({
@@ -82,7 +102,7 @@ export default function DelegatePage() {
     });
   };
 
-  const isLoading = tasksLoading || execsLoading || centresLoading;
+  const isLoading = tasksLoading || (isManager ? hqLoading : (execsLoading || centresLoading));
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -91,7 +111,9 @@ export default function DelegatePage() {
           <UserPlus className="text-indigo-650" />
           <span>Delegate Task</span>
         </h1>
-        <p className="text-sm text-slate-500 mt-1">Assign active tasks in your basket to centre executives</p>
+        <p className="text-sm text-slate-500 mt-1">
+          {isManager ? 'Assign department tasks to team members' : 'Assign active tasks in your basket to centre executives'}
+        </p>
       </div>
 
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
@@ -110,7 +132,7 @@ export default function DelegatePage() {
                 onChange={(e) => setSelectedTaskId(e.target.value)}
                 className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-700 font-semibold"
               >
-                <option value="" disabled>-- Select a task from your basket --</option>
+                <option value="" disabled>{isManager ? '-- Select a department task --' : '-- Select a task from your basket --'}</option>
                 {delegateableTasks.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.task_number || t.id.slice(-6).toUpperCase()} — {t.title} ({t.status.replace(/_/g, ' ')})
@@ -118,19 +140,23 @@ export default function DelegatePage() {
                 ))}
               </select>
               {delegateableTasks.length === 0 && (
-                <p className="text-[11px] text-amber-600 italic">No active tasks in your basket to delegate.</p>
+                <p className="text-[11px] text-amber-600 italic">
+                  {isManager ? 'No department tasks to delegate.' : 'No active tasks in your basket to delegate.'}
+                </p>
               )}
             </div>
 
             {/* Executive Picker */}
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Assign to Centre Executive *</label>
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">
+                {isManager ? 'Assign to Employee *' : 'Assign to Centre Executive *'}
+              </label>
               <select
                 value={selectedExecId}
                 onChange={(e) => setSelectedExecId(e.target.value)}
                 className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-700 font-semibold"
               >
-                <option value="" disabled>-- Select an executive --</option>
+                <option value="" disabled>-- Select an assignee --</option>
                 {execList.map((exec) => (
                   <option key={exec.id} value={exec.id}>
                     {exec.name} ({exec.email})
@@ -138,7 +164,9 @@ export default function DelegatePage() {
                 ))}
               </select>
               {execList.length === 0 && (
-                <p className="text-[11px] text-amber-600 italic">No centre executives are assigned to your centre yet.</p>
+                <p className="text-[11px] text-amber-600 italic">
+                  {isManager ? 'No employees found in your department.' : 'No centre executives are assigned to your centre yet.'}
+                </p>
               )}
             </div>
 
@@ -148,7 +176,7 @@ export default function DelegatePage() {
               <textarea
                 required
                 rows="4"
-                placeholder="Specify details, steps, or checklist items for the executive..."
+                placeholder={isManager ? "Specify details, steps, or checklist items for the employee..." : "Specify details, steps, or checklist items for the executive..."}
                 value={instructions}
                 onChange={(e) => setInstructions(e.target.value)}
                 className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-400 resize-none leading-relaxed"
@@ -159,7 +187,7 @@ export default function DelegatePage() {
             <button
               type="submit"
               disabled={delegateMutation.isPending || delegateableTasks.length === 0 || execList.length === 0}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl py-3 font-bold text-sm transition-all cursor-pointer shadow-md hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-1.5"
+              className="w-full bg-indigo-600 hover:bg-indigo-750 text-white rounded-xl py-3 font-bold text-sm transition-all cursor-pointer shadow-md hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-1.5"
             >
               {delegateMutation.isPending ? (
                 <>
@@ -179,3 +207,4 @@ export default function DelegatePage() {
     </div>
   );
 }
+

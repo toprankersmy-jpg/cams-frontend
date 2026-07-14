@@ -228,7 +228,7 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
 
   const getCurrentOwner = (task) => {
     if (!task) return 'Unassigned';
-    const { status, assigned_rm, assigned_ch, assigned_centre_executive, department } = task;
+    const { status, assigned_rm, assigned_ch, assigned_centre_executive, assigned_person, department } = task;
     
     if (status === 'pending_manager_approval') {
       return `HQ Manager (${department || 'Department'})`;
@@ -240,6 +240,9 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
       return assigned_ch?.name ? `CH: ${assigned_ch.name}` : 'Centre Head (Unassigned)';
     }
     if (status === 'in_progress') {
+      if (task.assigned_person_id) {
+        return assigned_person?.name ? `Employee: ${assigned_person.name}` : 'Employee (Assigned)';
+      }
       if (assigned_centre_executive?.name) {
         return `Executive: ${assigned_centre_executive.name}`;
       }
@@ -300,14 +303,26 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
     const isOwnCentre = role === 'centre_head'
       ? taskDetails?.assigned_ch?.id === user?.id
       : taskDetails?.assigned_rm?.id === user?.id;
-    if (!user?.is_admin) return transitionsForRole(status, role, isOwnCentre);
-    const seen = new Map();
-    for (const r of ALL_ROLES) {
-      for (const t of transitionsForRole(status, r, true)) {
-        if (!seen.has(t.status)) seen.set(t.status, t);
+    
+    let list = [];
+    if (!user?.is_admin) {
+      list = transitionsForRole(status, role, isOwnCentre);
+    } else {
+      const seen = new Map();
+      for (const r of ALL_ROLES) {
+        for (const t of transitionsForRole(status, r, true)) {
+          if (!seen.has(t.status)) seen.set(t.status, t);
+        }
+      }
+      list = Array.from(seen.values());
+    }
+
+    if (taskDetails?.assigned_person_id === user?.id && status === 'in_progress') {
+      if (!list.some(t => t.status === 'completed')) {
+        list.push({ status: 'completed', label: 'Mark Completed' });
       }
     }
-    return Array.from(seen.values());
+    return list;
   };
 
   if (!selectedTaskId) return null;

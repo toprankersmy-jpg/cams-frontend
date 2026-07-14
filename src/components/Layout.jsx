@@ -47,6 +47,7 @@ export default function Layout() {
   const [taskDepartment, setTaskDepartment] = useState(user?.department || '');
   const [targetType, setTargetType] = useState('specific_centre');
   const [targetDepartment, setTargetDepartment] = useState('');
+  const [assignedPersonId, setAssignedPersonId] = useState('');
 
   // Fetch unread notifications count
   const { data: unreadData } = useQuery({
@@ -86,6 +87,16 @@ export default function Layout() {
     enabled: isTaskModalOpen,
   });
 
+  const { data: hqExecutives } = useQuery({
+    queryKey: ['hqExecutives'],
+    queryFn: () => getUsersByRole('hq_executive'),
+    enabled: isTaskModalOpen,
+  });
+
+  const departmentEmployees = (hqExecutives || []).filter(
+    (emp) => emp.department === (user?.department || taskDepartment)
+  );
+
 
 
   const createTaskMutation = useMutation({
@@ -103,6 +114,7 @@ export default function Layout() {
       setTaskDepartment(user?.department || '');
       setTargetType('specific_centre');
       setTargetDepartment('');
+      setAssignedPersonId('');
       showToast('Task created successfully!');
     },
     onError: (err) => {
@@ -145,6 +157,12 @@ export default function Layout() {
       payload.target_department = targetDepartment;
     } else if (targetType === 'all_centres') {
       payload.is_general = true;
+    } else if (targetType === 'specific_person') {
+      if (!assignedPersonId) {
+        showToast('Please select an assigned person.', 'error');
+        return;
+      }
+      payload.assigned_person_id = assignedPersonId;
     }
 
     createTaskMutation.mutate(payload);
@@ -396,6 +414,7 @@ export default function Layout() {
                     <option value="specific_centre">Specific centre</option>
                     <option value="all_centres">All centres</option>
                     <option value="team_department">Team / Department</option>
+                    <option value="specific_person">Specific person</option>
                   </select>
                 </div>
 
@@ -448,6 +467,28 @@ export default function Layout() {
                         value="All centres"
                         className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-100 text-slate-500 cursor-not-allowed"
                       />
+                    </>
+                  )}
+
+                  {targetType === 'specific_person' && (
+                    <>
+                      <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Assign To Employee *</label>
+                      <select
+                        required
+                        value={assignedPersonId}
+                        onChange={(e) => setAssignedPersonId(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-semibold"
+                      >
+                        <option value="">Select Employee</option>
+                        {departmentEmployees.map((emp) => (
+                          <option key={emp.id} value={emp.id}>
+                            {emp.name} ({emp.email})
+                          </option>
+                        ))}
+                        {!departmentEmployees.length && (
+                          <option value="" disabled>No employees in your department found</option>
+                        )}
+                      </select>
                     </>
                   )}
                 </div>
