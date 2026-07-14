@@ -114,6 +114,7 @@ export default function TasksPage() {
           <option value="active_in_ch_basket">Active in CH Basket</option>
           <option value="acknowledged">Acknowledged</option>
           <option value="in_progress">In Progress</option>
+          <option value="pending_ch_review">Pending CH Review</option>
           <option value="completed">Completed</option>
           <option value="closed">Closed</option>
           <option value="rejected">Rejected</option>

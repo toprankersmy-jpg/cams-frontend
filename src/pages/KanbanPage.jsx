@@ -40,6 +40,7 @@ export default function KanbanPage() {
     { key: 'active_in_ch_basket', label: 'In Basket', color: 'border-blue-500 text-blue-700 bg-blue-50/50' },
     { key: 'acknowledged', label: 'Acknowledged', color: 'border-indigo-500 text-indigo-700 bg-indigo-50/50' },
     { key: 'in_progress', label: 'In Progress', color: 'border-amber-500 text-amber-700 bg-amber-50/50' },
+    { key: 'pending_ch_review', label: 'Pending Review', color: 'border-fuchsia-500 text-fuchsia-700 bg-fuchsia-50/50' },
     { key: 'blocked', label: 'Blocked', color: 'border-rose-500 text-rose-700 bg-rose-50/50' },
     { key: 'completed', label: 'Done', color: 'border-emerald-500 text-emerald-700 bg-emerald-50/50' }
   ];
@@ -97,9 +98,9 @@ export default function KanbanPage() {
       )}
 
       {/* Kanban Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-start">
+      <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-start">
         {isLoading ? (
-          <div className="col-span-5 py-24 text-center">
+          <div className="col-span-6 py-24 text-center">
             <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto" />
             <span className="text-xs text-slate-400 font-semibold mt-2 block">Loading board...</span>
           </div>

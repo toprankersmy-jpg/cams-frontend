@@ -44,13 +44,15 @@ export const getStatusBadge = (status) => {
     active_in_ch_basket: 'bg-blue-50 text-blue-700 border-blue-200',
     acknowledged: 'bg-indigo-50 text-indigo-700 border-indigo-200',
     in_progress: 'bg-violet-50 text-violet-700 border-violet-200',
+    pending_ch_review: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200',
     completed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     closed: 'bg-gray-50 text-gray-600 border-gray-200',
     rejected: 'bg-red-50 text-red-700 border-red-200',
     blocked: 'bg-orange-50 text-orange-700 border-orange-200',
     reopened: 'bg-cyan-50 text-cyan-700 border-cyan-200',
   };
-  const label = status ? status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : 'Unknown';
+  const labelOverrides = { pending_ch_review: 'Pending CH Review' };
+  const label = status ? (labelOverrides[status] || status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())) : 'Unknown';
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${styles[status] || 'bg-slate-50 text-slate-650 border-slate-200'}`}>
       {label}

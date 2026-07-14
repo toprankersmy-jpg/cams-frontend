@@ -131,6 +131,14 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
         }
         payload.final_priority = normalized;
       }
+    } else if (status === 'in_progress' && user?.role === 'centre_head' && taskDetails?.status === 'pending_ch_review') {
+      const feedback = prompt('Please explain why this is being sent back:');
+      if (!feedback) return;
+      payload.review_feedback = feedback;
+    } else if (status === 'completed') {
+      const note = prompt('Add a completion note (optional):');
+      if (note === null) return;
+      payload.completion_note = note || undefined;
     }
     updateStatusMutation.mutate({ taskId: selectedTaskId, ...payload });
   };
@@ -143,6 +151,8 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
       if (status === 'pending_manager_approval') {
         list.push({ status: 'active_in_ch_basket', label: 'Approve' });
         list.push({ status: 'rejected', label: 'Reject' });
+      } else if (status === 'completed' || status === 'closed') {
+        list.push({ status: 'reopened', label: 'Reopen' });
       }
     } else if (role === 'rm') {
       // RM actions are restricted to tasks in their own assigned centres
@@ -164,11 +174,16 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
         } else if (status === 'in_progress') {
           list.push({ status: 'completed', label: 'Mark Completed' });
           list.push({ status: 'blocked', label: 'Mark Blocked' });
+        } else if (status === 'pending_ch_review') {
+          list.push({ status: 'completed', label: 'Approve & Complete' });
+          list.push({ status: 'in_progress', label: 'Send Back' });
+        } else if (status === 'completed' || status === 'closed') {
+          list.push({ status: 'reopened', label: 'Reopen' });
         }
       }
     } else if (role === 'centre_executive') {
       if (status === 'in_progress') {
-        list.push({ status: 'completed', label: 'Mark Completed' });
+        list.push({ status: 'pending_ch_review', label: 'Submit for Review' });
       }
     } else if (role === 'leadership' || role === 'hq_executive') {
       if (status === 'completed' || status === 'closed') {
@@ -180,8 +195,8 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
 
   const getTransitions = (status, role) => {
     const isOwnCentre = role === 'centre_head'
-      ? taskDetails?.assigned_ch === user?.id
-      : taskDetails?.assigned_rm === user?.id;
+      ? taskDetails?.assigned_ch?.id === user?.id
+      : taskDetails?.assigned_rm?.id === user?.id;
     if (!user?.is_admin) return transitionsForRole(status, role, isOwnCentre);
     // Admin bypass: union of every role's available actions for this status
     const seen = new Map();
@@ -324,6 +339,18 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
                   <div className="bg-rose-50 rounded-lg px-3 py-2 col-span-2">
                     <div className="text-[10px] text-rose-500 mb-0.5">Rejection Reason</div>
                     <div className="text-xs font-semibold text-rose-700">{taskDetails.rejection_reason}</div>
+                  </div>
+                )}
+                {taskDetails?.review_feedback && (
+                  <div className="bg-amber-50 rounded-lg px-3 py-2 col-span-2">
+                    <div className="text-[10px] text-amber-600 mb-0.5">Sent Back — Feedback</div>
+                    <div className="text-xs font-semibold text-amber-700">{taskDetails.review_feedback}</div>
+                  </div>
+                )}
+                {taskDetails?.completion_note && (
+                  <div className="bg-emerald-50 rounded-lg px-3 py-2 col-span-2">
+                    <div className="text-[10px] text-emerald-600 mb-0.5">Completion Note</div>
+                    <div className="text-xs font-semibold text-emerald-700">{taskDetails.completion_note}</div>
                   </div>
                 )}
               </div>
