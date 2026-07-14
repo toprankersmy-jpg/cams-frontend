@@ -10,7 +10,8 @@ import {
   updateTaskStatus,
   deleteTask,
   getResolvedPermissionsMe,
-  updateTaskDueDate
+  updateTaskDueDate,
+  editTask
 } from '../api';
 import {
   Clock,
@@ -39,6 +40,11 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
   const [newDueDate, setNewDueDate] = useState('');
   const [dueDateReason, setDueDateReason] = useState('');
   const [managerPriorityInput, setManagerPriorityInput] = useState('');
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editPriority, setEditPriority] = useState('');
+  const [editDueDate, setEditDueDate] = useState('');
 
   // Fetch individual task details
   const { data: taskDetails, isLoading: detailsLoading } = useQuery({
@@ -178,6 +184,48 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
     }
   };
 
+  const editTaskMutation = useMutation({
+    mutationFn: (data) => editTask(selectedTaskId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['taskDetails', selectedTaskId] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['myTasks'] });
+      setShowEditForm(false);
+      showToast('Task updated successfully!');
+    },
+    onError: (err) => {
+      showToast(!err.response ? 'Server still waking up — try again in 30 seconds.' : (err.response?.data?.error || 'Failed to update task.'), 'error');
+    }
+  });
+
+  const handleOpenEditForm = () => {
+    setEditTitle(taskDetails?.title || '');
+    setEditDescription(taskDetails?.description || '');
+    setEditPriority(taskDetails?.proposed_priority || '');
+    setEditDueDate(taskDetails?.initiator_due_date ? taskDetails.initiator_due_date.split('T')[0] : '');
+    setShowEditForm(true);
+  };
+
+  const handleSubmitEdit = (e) => {
+    e.preventDefault();
+    if (!editTitle.trim()) {
+      showToast('Title cannot be empty.', 'error');
+      return;
+    }
+    editTaskMutation.mutate({
+      title: editTitle.trim(),
+      description: editDescription,
+      proposed_priority: editPriority,
+      initiator_due_date: editDueDate
+    });
+  };
+
+  const canEditTask = taskDetails?.status === 'pending_manager_approval' && (
+    user?.is_admin ||
+    user?.id === taskDetails?.initiated_by?.id ||
+    (taskDetails?.assigned_manager && user?.id === taskDetails.assigned_manager)
+  );
+
   const getCurrentOwner = (task) => {
     if (!task) return 'Unassigned';
     const { status, assigned_rm, assigned_ch, assigned_centre_executive, department } = task;
@@ -283,8 +331,13 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">
               Task Details : {taskDetails?.task_number || `#${selectedTaskId.slice(-6).toUpperCase()}`}
             </span>
-            <h3 className="font-bold text-slate-900 text-base mt-0.5 truncate pr-2">
-              {taskDetails?.title || (detailsLoading ? 'Loading details...' : 'Task View')}
+            <h3 className="font-bold text-slate-900 text-base mt-0.5 truncate pr-2 flex items-center gap-2">
+              <span className="truncate">{taskDetails?.title || (detailsLoading ? 'Loading details...' : 'Task View')}</span>
+              {taskDetails?.is_edited && (
+                <span className="shrink-0 text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 rounded px-1.5 py-0.5 uppercase tracking-wide">
+                  Edited
+                </span>
+              )}
             </h3>
           </div>
           <div className="flex items-center gap-1 shrink-0">
@@ -436,6 +489,82 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
                 )}
               </div>
 
+              {/* Edit Task (initiator / assigned manager / admin, pre-approval only) */}
+              {canEditTask && (
+                <div className="space-y-2">
+                  {!showEditForm ? (
+                    <button
+                      type="button"
+                      onClick={handleOpenEditForm}
+                      className="w-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-650 rounded-xl py-2 text-xs font-bold transition-all cursor-pointer shadow-sm"
+                    >
+                      Edit Task
+                    </button>
+                  ) : (
+                    <form onSubmit={handleSubmitEdit} className="space-y-2 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Title *</label>
+                        <input
+                          type="text"
+                          required
+                          value={editTitle}
+                          onChange={(e) => setEditTitle(e.target.value)}
+                          className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none text-slate-700 font-semibold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Description</label>
+                        <textarea
+                          rows="3"
+                          value={editDescription}
+                          onChange={(e) => setEditDescription(e.target.value)}
+                          className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none text-slate-700 resize-none"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Proposed Priority</label>
+                          <select
+                            value={editPriority}
+                            onChange={(e) => setEditPriority(e.target.value)}
+                            className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none text-slate-700 font-semibold"
+                          >
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Due Date</label>
+                          <input
+                            type="date"
+                            value={editDueDate}
+                            onChange={(e) => setEditDueDate(e.target.value)}
+                            className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none text-slate-700 font-semibold"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex gap-2 pt-1">
+                        <button
+                          type="submit"
+                          disabled={editTaskMutation.isPending}
+                          className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-1.5 text-xs font-bold transition-all cursor-pointer shadow-sm"
+                        >
+                          {editTaskMutation.isPending ? 'Saving...' : 'Save Changes'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowEditForm(false)}
+                          className="bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 rounded-lg py-1.5 px-3 text-xs font-bold transition-all cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+              )}
+
               {/* Action: Update Task Status */}
               <div className="space-y-3">
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono">Operations Actions</h4>
@@ -568,6 +697,18 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
                         const fieldLabel = log.field === 'initiator_due_date' ? 'Initiator' : (log.field === 'manager_due_date' ? 'Manager' : 'RM');
                         text = `Due date (${fieldLabel}): ${log.previous_due_date || 'None'} → ${log.new_due_date}`;
                         iconPrefix = '📅';
+                      } else if (log.type === 'edit') {
+                        iconPrefix = '✏️';
+                        if (log.previous_data && log.new_data) {
+                          const changes = Object.keys(log.new_data).map((k) => {
+                            const prev = log.previous_data[k] ?? '—';
+                            const next = log.new_data[k] ?? '—';
+                            return `${k.replace(/_/g, ' ')}: "${prev}" → "${next}"`;
+                          }).join('; ');
+                          text = `Task edited — ${changes}`;
+                        } else {
+                          text = 'Task details were edited (admin can view exactly what changed)';
+                        }
                       }
 
                       return (

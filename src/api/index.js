@@ -62,3 +62,6 @@ export const overrideTaskPriority = (id, finalPriority) => api.patch(`/api/tasks
 // Task due date extension API
 export const updateTaskDueDate = (id, newDueDate, reason) => api.patch(`/api/tasks/${id}/due-date`, { new_due_date: newDueDate, reason }).then((res) => res.data);
 
+// Task edit API (initiator / assigned manager, pending_manager_approval only)
+export const editTask = (id, data) => api.patch(`/api/tasks/${id}/edit`, data).then((res) => res.data);
+
