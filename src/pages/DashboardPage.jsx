@@ -20,7 +20,7 @@ import {
   X,
   Plus
 } from 'lucide-react';
-import { getPriorityBadge, getStatusBadge, getTaskDueDate } from '../utils/taskDisplay';
+import { getPriorityBadge, getStatusBadge, getTaskDueDate, getTaskLocationLabel } from '../utils/taskDisplay';
 import TaskDrawer from '../components/TaskDrawer';
 import ManagerApprovalBlock from '../components/ManagerApprovalBlock';
 
@@ -266,7 +266,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex items-center justify-between text-slate-500">
                     <span className="flex items-center gap-1"><Building size={13} /> Centre:</span>
-                    <span className="font-bold text-slate-700">{t.target_centre?.name || 'All Centres'}</span>
+                    <span className="font-bold text-slate-700">{getTaskLocationLabel(t)}</span>
                   </div>
                 </div>
 
@@ -321,7 +321,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex items-center justify-between text-slate-500">
                     <span className="flex items-center gap-1"><Building size={13} /> Centre:</span>
-                    <span className="font-bold text-slate-700">{t.target_centre?.name || 'All Centres'}</span>
+                    <span className="font-bold text-slate-700">{getTaskLocationLabel(t)}</span>
                   </div>
                 </div>
 
@@ -391,7 +391,7 @@ export default function DashboardPage() {
                   </td>
                   <td className="py-3.5 px-6 text-slate-650 flex items-center gap-1.5 mt-2">
                     <Building size={13} className="text-slate-400" />
-                    <span>{t.target_centre?.name || 'All Centres'}</span>
+                    <span>{getTaskLocationLabel(t)}</span>
                   </td>
                   <td className="py-3.5 px-6">
                     {getPriorityBadge(t.final_priority ?? t.manager_priority ?? t.proposed_priority)}

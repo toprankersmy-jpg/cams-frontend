@@ -65,3 +65,20 @@ export const getTaskDueDate = (t) => {
   return new Date(t.effective_due_date);
 };
 
+/**
+ * A task with no target_centre isn't necessarily an "All Centres" task —
+ * it could be routed to a specific person or a department instead. Picks
+ * the right label instead of defaulting every no-centre task to "All Centres".
+ */
+export const getTaskLocationLabel = (t) => {
+  if (!t) return '—';
+  if (t.target_centre?.name) return t.target_centre.name;
+  if (t.target_type === 'specific_person') {
+    return t.assigned_person?.name ? `Direct: ${t.assigned_person.name}` : 'Direct Assignment';
+  }
+  if (t.target_type === 'team_department') {
+    return `Dept: ${t.target_department || t.department || '—'}`;
+  }
+  return 'All Centres';
+};
+

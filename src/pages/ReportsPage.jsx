@@ -2,6 +2,7 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getAllTasks, getAllCentres } from '../api';
 import { BarChart3, Clock, CheckCircle2, AlertCircle, ShieldAlert, Building } from 'lucide-react';
+import { getTaskLocationLabel } from '../utils/taskDisplay';
 
 export default function ReportsPage() {
   // Query all tasks
@@ -75,7 +76,7 @@ export default function ReportsPage() {
   // Tasks by centre aggregation
   const centreMap = {};
   taskList.forEach((t) => {
-    const c = t.target_centre?.name || 'All Centres';
+    const c = getTaskLocationLabel(t);
     centreMap[c] = (centreMap[c] || 0) + 1;
   });
   const centreData = Object.entries(centreMap)
@@ -89,7 +90,7 @@ export default function ReportsPage() {
   const delayedCentreMap = {};
   taskList.forEach((t) => {
     if (isOverdue(t)) {
-      const cName = t.target_centre?.name || 'All Centres';
+      const cName = getTaskLocationLabel(t);
       const cId = t.target_centre_id || 'all';
       const rmName = t.assigned_rm?.name || 'Unassigned';
       const dueDate = getResolvedDueDate(t);

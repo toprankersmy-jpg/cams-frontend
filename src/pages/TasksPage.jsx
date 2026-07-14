@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLocation } from 'react-router-dom';
 import { getMyTasks, getAllTasks, getAllCentres } from '../api';
 import { Search, ChevronRight, Loader2, Building } from 'lucide-react';
-import { getPriorityBadge, getStatusBadge, getTaskDueDate } from '../utils/taskDisplay';
+import { getPriorityBadge, getStatusBadge, getTaskDueDate, getTaskLocationLabel } from '../utils/taskDisplay';
 import TaskDrawer from '../components/TaskDrawer';
 
 const SkeletonRow = () => (
@@ -183,7 +183,7 @@ export default function TasksPage() {
                     <td className="py-3.5 px-6 font-semibold text-slate-800">{t.title}</td>
                     <td className="py-3.5 px-6 text-slate-650 flex items-center gap-1.5 mt-2">
                       <Building size={13} className="text-slate-400" />
-                      <span>{t.target_centre?.name || 'All Centres'}</span>
+                      <span>{getTaskLocationLabel(t)}</span>
                     </td>
                     <td className="py-3.5 px-6">{getPriorityBadge(currentPriority)}</td>
                     <td className="py-3.5 px-6">{getStatusBadge(t.status)}</td>

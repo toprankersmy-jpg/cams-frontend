@@ -28,7 +28,7 @@ import {
   Sparkles,
   Trash2
 } from 'lucide-react';
-import { getPriorityBadge, getStatusBadge, getTaskDueDate } from '../utils/taskDisplay';
+import { getPriorityBadge, getStatusBadge, getTaskDueDate, getTaskLocationLabel } from '../utils/taskDisplay';
 
 export default function TaskDrawer({ selectedTaskId, onClose }) {
   const { user } = useAuth();
@@ -420,7 +420,7 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
                   <span className="text-slate-400 font-semibold">Centre</span>
                   <span className="font-semibold text-slate-700 flex items-center gap-1">
                     <Building size={14} className="text-slate-400" />
-                    {taskDetails?.target_centre?.name || 'All Centres'}
+                    {getTaskLocationLabel(taskDetails)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-xs">
