@@ -93,6 +93,7 @@ export default function AdminPage() {
     queryKey: ['editingUserPermissions', editingUser?.id],
     queryFn: () => getUserPermissions(editingUser.id),
     enabled: !!editingUser?.id && userModalOpen,
+    staleTime: 0, // same reasoning as adminUsers/adminCentres above — must reflect overrides just saved, not a 5-minute-old cache
   });
 
   const { data: departments, isLoading: departmentsLoading } = useQuery({
@@ -157,9 +158,11 @@ export default function AdminPage() {
 
       return savedUser;
     },
-    onSuccess: () => {
+    onSuccess: (savedUser) => {
       queryClient.invalidateQueries({ queryKey: ['adminUsers'] });
       queryClient.invalidateQueries({ queryKey: ['adminCentres'] });
+      queryClient.invalidateQueries({ queryKey: ['editingUserPermissions', savedUser.id] });
+      queryClient.invalidateQueries({ queryKey: ['userPermissionsOverrides', savedUser.id] });
       setUserModalOpen(false);
       setEditingUser(null);
       showToast('User saved successfully');
