@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { getMyTasks, getUsersByRole, getUserDirectory, getAllCentres, assignTask, addComment } from '../api';
 import { UserPlus, ClipboardList, Send, Loader2 } from 'lucide-react';
+import EmployeePicker from '../components/EmployeePicker';
 
 export default function DelegatePage() {
   const { user } = useAuth();
@@ -12,7 +13,6 @@ export default function DelegatePage() {
   const [selectedTaskId, setSelectedTaskId] = useState('');
   const [selectedExecId, setSelectedExecId] = useState('');
   const [instructions, setInstructions] = useState('');
-  const [employeeSearch, setEmployeeSearch] = useState('');
 
   const isManager = user?.role === 'hq_manager';
 
@@ -54,12 +54,7 @@ export default function DelegatePage() {
   let execList = [];
   if (isManager) {
     const allActiveUsers = Array.isArray(userDirectory) ? userDirectory : (userDirectory?.users || userDirectory?.data || []);
-    execList = allActiveUsers.filter((emp) => {
-      if (emp.id === user?.id) return false;
-      if (!employeeSearch.trim()) return true;
-      const q = employeeSearch.toLowerCase();
-      return emp.name?.toLowerCase().includes(q) || emp.email?.toLowerCase().includes(q);
-    });
+    execList = allActiveUsers.filter((emp) => emp.id !== user?.id);
   } else {
     const myCentreIds = new Set(centreList.filter((c) => c.ch_id === user?.id).map((c) => c.id));
     execList = allExecList.filter((exec) => exec.centre_id && myCentreIds.has(exec.centre_id));
@@ -88,7 +83,6 @@ export default function DelegatePage() {
       setSelectedTaskId('');
       setSelectedExecId('');
       setInstructions('');
-      setEmployeeSearch('');
       showToast(isManager ? 'Task successfully delegated to department employee!' : 'Task successfully delegated to Centre Executive!');
     },
     onError: (err) => {
@@ -158,27 +152,26 @@ export default function DelegatePage() {
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">
                 {isManager ? 'Assign to Employee *' : 'Assign to Centre Executive *'}
               </label>
-              {isManager && (
-                <input
-                  type="text"
-                  placeholder="Search by name or email..."
-                  value={employeeSearch}
-                  onChange={(e) => setEmployeeSearch(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 mb-1.5"
+              {isManager ? (
+                <EmployeePicker
+                  users={execList}
+                  value={selectedExecId}
+                  onChange={setSelectedExecId}
                 />
+              ) : (
+                <select
+                  value={selectedExecId}
+                  onChange={(e) => setSelectedExecId(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-700 font-semibold"
+                >
+                  <option value="" disabled>-- Select an assignee --</option>
+                  {execList.map((exec) => (
+                    <option key={exec.id} value={exec.id}>
+                      {exec.name} ({exec.email})
+                    </option>
+                  ))}
+                </select>
               )}
-              <select
-                value={selectedExecId}
-                onChange={(e) => setSelectedExecId(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-700 font-semibold"
-              >
-                <option value="" disabled>-- Select an assignee --</option>
-                {execList.map((exec) => (
-                  <option key={exec.id} value={exec.id}>
-                    {exec.name} {isManager && exec.role ? `(${exec.role.replace(/_/g, ' ')}) ` : ''}({exec.email})
-                  </option>
-                ))}
-              </select>
               {execList.length === 0 && (
                 <p className="text-[11px] text-amber-600 italic">
                   {isManager ? 'No matching active users found.' : 'No centre executives are assigned to your centre yet.'}
