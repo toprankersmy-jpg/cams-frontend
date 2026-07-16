@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { getMyTasks, getUsersByRole, getAllCentres, assignTask, addComment } from '../api';
+import { getMyTasks, getUsersByRole, getUserDirectory, getAllCentres, assignTask, addComment } from '../api';
 import { UserPlus, ClipboardList, Send, Loader2 } from 'lucide-react';
 
 export default function DelegatePage() {
@@ -12,6 +12,7 @@ export default function DelegatePage() {
   const [selectedTaskId, setSelectedTaskId] = useState('');
   const [selectedExecId, setSelectedExecId] = useState('');
   const [instructions, setInstructions] = useState('');
+  const [employeeSearch, setEmployeeSearch] = useState('');
 
   const isManager = user?.role === 'hq_manager';
 
@@ -30,10 +31,10 @@ export default function DelegatePage() {
     retry: 1,
   });
 
-  // Fetch all hq executives (for Manager users)
-  const { data: hqExecutives, isLoading: hqLoading } = useQuery({
-    queryKey: ['hqExecutives'],
-    queryFn: () => getUsersByRole('hq_executive'),
+  // Fetch full active-user directory (for Manager users, any role/department)
+  const { data: userDirectory, isLoading: hqLoading } = useQuery({
+    queryKey: ['userDirectory'],
+    queryFn: getUserDirectory,
     enabled: isManager,
     retry: 1,
   });
@@ -52,8 +53,13 @@ export default function DelegatePage() {
 
   let execList = [];
   if (isManager) {
-    const allHqList = Array.isArray(hqExecutives) ? hqExecutives : (hqExecutives?.users || hqExecutives?.data || []);
-    execList = allHqList.filter((emp) => emp.department === user?.department);
+    const allActiveUsers = Array.isArray(userDirectory) ? userDirectory : (userDirectory?.users || userDirectory?.data || []);
+    execList = allActiveUsers.filter((emp) => {
+      if (emp.id === user?.id) return false;
+      if (!employeeSearch.trim()) return true;
+      const q = employeeSearch.toLowerCase();
+      return emp.name?.toLowerCase().includes(q) || emp.email?.toLowerCase().includes(q);
+    });
   } else {
     const myCentreIds = new Set(centreList.filter((c) => c.ch_id === user?.id).map((c) => c.id));
     execList = allExecList.filter((exec) => exec.centre_id && myCentreIds.has(exec.centre_id));
@@ -82,6 +88,7 @@ export default function DelegatePage() {
       setSelectedTaskId('');
       setSelectedExecId('');
       setInstructions('');
+      setEmployeeSearch('');
       showToast(isManager ? 'Task successfully delegated to department employee!' : 'Task successfully delegated to Centre Executive!');
     },
     onError: (err) => {
@@ -151,6 +158,15 @@ export default function DelegatePage() {
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">
                 {isManager ? 'Assign to Employee *' : 'Assign to Centre Executive *'}
               </label>
+              {isManager && (
+                <input
+                  type="text"
+                  placeholder="Search by name or email..."
+                  value={employeeSearch}
+                  onChange={(e) => setEmployeeSearch(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 mb-1.5"
+                />
+              )}
               <select
                 value={selectedExecId}
                 onChange={(e) => setSelectedExecId(e.target.value)}
@@ -159,13 +175,13 @@ export default function DelegatePage() {
                 <option value="" disabled>-- Select an assignee --</option>
                 {execList.map((exec) => (
                   <option key={exec.id} value={exec.id}>
-                    {exec.name} ({exec.email})
+                    {exec.name} {isManager && exec.role ? `(${exec.role.replace(/_/g, ' ')}) ` : ''}({exec.email})
                   </option>
                 ))}
               </select>
               {execList.length === 0 && (
                 <p className="text-[11px] text-amber-600 italic">
-                  {isManager ? 'No employees found in your department.' : 'No centre executives are assigned to your centre yet.'}
+                  {isManager ? 'No matching active users found.' : 'No centre executives are assigned to your centre yet.'}
                 </p>
               )}
             </div>

@@ -33,6 +33,7 @@ export const markAllRead = () => api.patch('/api/notifications/read-all').then((
 
 // Users API
 export const getUsersByRole = (role) => api.get(`/api/users/role/${role}`).then((res) => res.data);
+export const getUserDirectory = () => api.get('/api/users/directory').then((res) => res.data);
 export const getAllUsers = () => api.get('/api/users').then((res) => res.data);
 export const createUser = (data) => api.post('/api/users', data).then((res) => res.data);
 export const updateUser = (id, data) => api.patch(`/api/users/${id}`, data).then((res) => res.data);
