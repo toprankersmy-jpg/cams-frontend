@@ -475,36 +475,39 @@ export default function Layout() {
                   )}
 
                   {targetType === 'specific_person' && (
-                    <>
-                      <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Assign To Employee *</label>
-                      <input
-                        type="text"
-                        placeholder="Search by name or email..."
-                        value={employeeSearch}
-                        onChange={(e) => setEmployeeSearch(e.target.value)}
-                        className="w-full px-3 py-2 mb-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-400"
-                      />
-                      <select
-                        required
-                        value={assignedPersonId}
-                        onChange={(e) => setAssignedPersonId(e.target.value)}
-                        size={searchedEmployees.length > 1 ? Math.min(searchedEmployees.length + 1, 6) : undefined}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-semibold"
-                      >
-                        <option value="">Select Employee</option>
-                        {searchedEmployees.map((emp) => (
-                          <option key={emp.id} value={emp.id}>
-                            {emp.name} ({emp.role?.replace(/_/g, ' ')}) — {emp.email}
-                          </option>
-                        ))}
-                        {!searchedEmployees.length && (
-                          <option value="" disabled>No matching active users</option>
-                        )}
-                      </select>
-                    </>
+                    <p className="text-xs text-slate-400 italic pt-2">Pick the employee below.</p>
                   )}
                 </div>
               </div>
+
+              {targetType === 'specific_person' && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Assign To Employee *</label>
+                  <input
+                    type="text"
+                    placeholder="Search by name or email..."
+                    value={employeeSearch}
+                    onChange={(e) => setEmployeeSearch(e.target.value)}
+                    className="w-full px-3 py-2 mb-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-400"
+                  />
+                  <select
+                    required
+                    value={assignedPersonId}
+                    onChange={(e) => setAssignedPersonId(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-semibold"
+                  >
+                    <option value="">Select Employee</option>
+                    {searchedEmployees.map((emp) => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.name} ({emp.role?.replace(/_/g, ' ')}) — {emp.email}
+                      </option>
+                    ))}
+                    {!searchedEmployees.length && (
+                      <option value="" disabled>No matching active users</option>
+                    )}
+                  </select>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
