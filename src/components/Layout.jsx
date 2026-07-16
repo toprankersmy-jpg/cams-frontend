@@ -93,8 +93,9 @@ export default function Layout() {
     enabled: isTaskModalOpen,
   });
 
+  const effectiveDepartment = user?.department || taskDepartment;
   const departmentEmployees = (hqExecutives || []).filter(
-    (emp) => emp.department === (user?.department || taskDepartment)
+    (emp) => emp.department === effectiveDepartment
   );
 
 
@@ -485,10 +486,18 @@ export default function Layout() {
                             {emp.name} ({emp.email})
                           </option>
                         ))}
-                        {!departmentEmployees.length && (
-                          <option value="" disabled>No employees in your department found</option>
+                        {!effectiveDepartment && (
+                          <option value="" disabled>Select a department above first</option>
+                        )}
+                        {effectiveDepartment && !departmentEmployees.length && (
+                          <option value="" disabled>No HQ Executives found in "{effectiveDepartment}"</option>
                         )}
                       </select>
+                      {effectiveDepartment && !departmentEmployees.length && (
+                        <p className="text-[11px] text-amber-600 mt-1">
+                          No active HQ Executive has "{effectiveDepartment}" set as their department. Check Admin Panel → Users that the spelling matches exactly.
+                        </p>
+                      )}
                     </>
                   )}
                 </div>
