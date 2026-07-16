@@ -6,7 +6,7 @@ import { Search, X } from 'lucide-react';
  * Replaces the old pattern of a separate search box + a plain <select> —
  * that required typing, then a second click into an unrelated dropdown.
  */
-export default function EmployeePicker({ users, value, onChange, placeholder = 'Search by name or email...', showRole = true, excludeUserId = null }) {
+export default function EmployeePicker({ users, value, onChange, placeholder = 'Search by name or email...', excludeUserId = null }) {
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef(null);
@@ -77,14 +77,7 @@ export default function EmployeePicker({ users, value, onChange, placeholder = '
               className="w-full text-left px-3 py-2 text-xs hover:bg-indigo-50 cursor-pointer flex items-center justify-between gap-2"
             >
               <span className="font-semibold text-slate-800 truncate">{u.name}</span>
-              <span className="flex items-center gap-1.5 shrink-0">
-                {showRole && u.role && (
-                  <span className="text-[9px] uppercase font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
-                    {u.role.replace(/_/g, ' ')}
-                  </span>
-                )}
-                <span className="text-slate-400 font-mono text-[10px]">{u.email}</span>
-              </span>
+              <span className="text-slate-400 font-mono text-[10px] shrink-0">{u.email}</span>
             </button>
           ))}
           {!visibleMatches.length && (
