@@ -5,7 +5,7 @@ import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import TasksPage from './pages/TasksPage';
-import CentresPage from './pages/CentresPage';
+import OrgHubPage from './pages/OrgHubPage';
 import NotificationsPage from './pages/NotificationsPage';
 import AdminPage from './pages/AdminPage';
 import KanbanPage from './pages/KanbanPage';
@@ -44,7 +44,7 @@ function ProtectedRoute() {
     '/dashboard': 'page:dashboard',
     '/tasks': 'page:tasks',
     '/delegate': 'page:delegate',
-    '/centres': 'page:centres',
+    '/org-hub': 'page:org_hub',
     '/notifications': 'page:notifications',
     '/kanban': 'page:kanban',
     '/reports': 'page:reports',
@@ -84,7 +84,7 @@ export default function App() {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/tasks" element={<TasksPage />} />
             <Route path="/delegate" element={<DelegatePage />} />
-            <Route path="/centres" element={<CentresPage />} />
+            <Route path="/org-hub" element={<OrgHubPage />} />
             <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/kanban" element={<KanbanPage />} />
             <Route path="/reports" element={<ReportsPage />} />

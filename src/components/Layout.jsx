@@ -9,7 +9,7 @@ import {
   LayoutDashboard,
   CheckSquare,
   ListTodo,
-  Building2,
+  Network,
   FolderLock,
   UserPlus,
   BarChart3,
@@ -175,7 +175,7 @@ export default function Layout() {
     { label: 'Tasks', path: '/tasks', icon: CheckSquare, permissionKey: 'page:tasks' },
     { label: 'Kanban Board', path: '/kanban', icon: ListTodo, permissionKey: 'page:kanban' },
     { label: 'Delegate Task', path: '/delegate', icon: UserPlus, permissionKey: 'page:delegate' },
-    { label: 'Centres', path: '/centres', icon: Building2, permissionKey: 'page:centres' },
+    { label: 'Organization Hub', path: '/org-hub', icon: Network, permissionKey: 'page:org_hub' },
     { label: 'Reports', path: '/reports', icon: BarChart3, permissionKey: 'page:reports' },
     { label: 'Admin Panel', path: '/admin', icon: FolderLock, permissionKey: 'page:admin' },
   ];

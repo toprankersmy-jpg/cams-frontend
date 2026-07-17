@@ -20,7 +20,7 @@ const pagePermissionKeys = [
   { key: 'page:tasks', label: 'Tasks' },
   { key: 'page:kanban', label: 'Kanban Task Board' },
   { key: 'page:delegate', label: 'Delegate Centre Tasks' },
-  { key: 'page:centres', label: 'Centres Directory' },
+  { key: 'page:org_hub', label: 'Organization Hub' },
   { key: 'page:notifications', label: 'Notifications Hub' },
   { key: 'page:reports', label: 'Reports & Analytics' }
 ];

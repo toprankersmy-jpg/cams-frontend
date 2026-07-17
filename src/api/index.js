@@ -21,6 +21,10 @@ export const addComment = (taskId, text, isSuggestion = false) => api.post(`/api
 // Centres API
 export const getAllCentres = () => api.get('/api/centres').then((res) => res.data);
 
+// Organization Hub API
+export const getOrgHubEmployees = () => api.get('/api/org-hub/employees').then((res) => res.data);
+export const getOrgHubDepartments = () => api.get('/api/org-hub/departments').then((res) => res.data);
+
 // Departments API
 export const getAllDepartments = () => api.get('/api/departments').then((res) => res.data);
 export const createDepartment = (name) => api.post('/api/departments', { name }).then((res) => res.data);
