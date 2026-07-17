@@ -6,8 +6,10 @@ import {
   getAllCentres, createCentre, updateCentre, deactivateCentre,
   getAllPermissions, updateRolePermission, getUserPermissions, setUserOverridePermission, deleteUserOverridePermission,
   getUsersByRole,
-  getAllDepartments, createDepartment, deactivateDepartment
+  getAllDepartments, createDepartment, updateDepartment, deactivateDepartment,
+  getOrgHubEmployees, createOrgHubEmployee, updateOrgHubEmployee, deactivateOrgHubEmployee
 } from '../api';
+import EmployeePicker from '../components/EmployeePicker';
 import {
   Shield, Users, Building2, Key, UserCheck, UserMinus, Plus, Edit2,
   Trash2, ToggleLeft, ToggleRight, Check, X, Search, CheckSquare, Square, RefreshCw, Briefcase, LogIn
@@ -45,6 +47,13 @@ export default function AdminPage() {
   const [pageAccess, setPageAccess] = useState({});
   const [centreModalOpen, setCentreModalOpen] = useState(false);
   const [editingCentre, setEditingCentre] = useState(null);
+  const [departmentModalOpen, setDepartmentModalOpen] = useState(false);
+  const [editingDepartment, setEditingDepartment] = useState(null);
+  const [employeeModalOpen, setEmployeeModalOpen] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState(null);
+  const [employeeManagerId, setEmployeeManagerId] = useState('');
+  const [employeeUserId, setEmployeeUserId] = useState('');
+  const [employeeSearchQuery, setEmployeeSearchQuery] = useState('');
 
   // Search state for user override section
   const [searchUserQuery, setSearchUserQuery] = useState('');
@@ -86,6 +95,14 @@ export default function AdminPage() {
     queryFn: () => getUsersByRole('centre_head'),
   });
 
+  // Same query key as OrgHubPage.jsx so an edit here invalidates that page's
+  // cache too, and vice versa — one source of truth for this table's data.
+  const { data: orgEmployees, isLoading: orgEmployeesLoading } = useQuery({
+    queryKey: ['org-hub-employees'],
+    queryFn: getOrgHubEmployees,
+    staleTime: 0,
+  });
+
   // Resolved permissions for whichever user is currently open in the
   // Add/Edit modal, so the Page Access checklist can seed from their actual
   // effective state (existing override if any, else role default)
@@ -102,24 +119,68 @@ export default function AdminPage() {
   });
 
   const [newDepartmentName, setNewDepartmentName] = useState('');
+  const [newDepartmentGroup, setNewDepartmentGroup] = useState('');
+  const [newDepartmentCity, setNewDepartmentCity] = useState('');
+
+  const invalidateDepartmentQueries = () => {
+    queryClient.invalidateQueries({ queryKey: ['adminDepartments'] });
+    queryClient.invalidateQueries({ queryKey: ['departments'] });
+    queryClient.invalidateQueries({ queryKey: ['org-hub-departments'] });
+  };
 
   const createDepartmentMutation = useMutation({
     mutationFn: createDepartment,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['adminDepartments'] });
-      queryClient.invalidateQueries({ queryKey: ['departments'] });
+      invalidateDepartmentQueries();
       setNewDepartmentName('');
+      setNewDepartmentGroup('');
+      setNewDepartmentCity('');
     },
     onError: (err) => showToast(err.response?.data?.error || 'Failed to add department', 'error')
+  });
+
+  const updateDepartmentMutation = useMutation({
+    mutationFn: ({ id, data }) => updateDepartment(id, data),
+    onSuccess: () => {
+      invalidateDepartmentQueries();
+      setDepartmentModalOpen(false);
+      setEditingDepartment(null);
+      showToast('Department saved successfully');
+    },
+    onError: (err) => showToast(err.response?.data?.error || 'Failed to update department', 'error')
   });
 
   const deactivateDepartmentMutation = useMutation({
     mutationFn: deactivateDepartment,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['adminDepartments'] });
-      queryClient.invalidateQueries({ queryKey: ['departments'] });
+      invalidateDepartmentQueries();
     },
     onError: (err) => showToast(err.response?.data?.error || 'Failed to remove department', 'error')
+  });
+
+  const invalidateEmployeeQueries = () => {
+    queryClient.invalidateQueries({ queryKey: ['org-hub-employees'] });
+    queryClient.invalidateQueries({ queryKey: ['org-hub-departments'] });
+  };
+
+  const saveEmployeeMutation = useMutation({
+    mutationFn: (data) => editingEmployee ? updateOrgHubEmployee(editingEmployee.id, data) : createOrgHubEmployee(data),
+    onSuccess: () => {
+      invalidateEmployeeQueries();
+      setEmployeeModalOpen(false);
+      setEditingEmployee(null);
+      showToast('Employee saved successfully');
+    },
+    onError: (err) => showToast(err.response?.data?.error || 'Operation failed', 'error')
+  });
+
+  const deactivateEmployeeMutation = useMutation({
+    mutationFn: deactivateOrgHubEmployee,
+    onSuccess: () => {
+      invalidateEmployeeQueries();
+      showToast('Employee deactivated successfully');
+    },
+    onError: (err) => showToast(err.response?.data?.error || 'Operation failed', 'error')
   });
 
   // User Mutation Actions
@@ -295,6 +356,19 @@ export default function AdminPage() {
     });
   };
 
+  const employeeSearchLower = employeeSearchQuery.trim().toLowerCase();
+  const filteredOrgEmployees = (orgEmployees || []).filter((e) => {
+    if (!employeeSearchLower) return true;
+    return (
+      e.full_name?.toLowerCase().includes(employeeSearchLower) ||
+      e.email?.toLowerCase().includes(employeeSearchLower) ||
+      e.designation?.toLowerCase().includes(employeeSearchLower)
+    );
+  });
+
+  // EmployeePicker expects {id, name, email}; org-hub employees use full_name
+  const employeePickerOptions = (orgEmployees || []).map((e) => ({ id: e.id, name: e.full_name, email: e.email }));
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
@@ -346,6 +420,15 @@ export default function AdminPage() {
         >
           <Briefcase size={16} />
           <span>Departments</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('employees')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
+            activeTab === 'employees' ? 'bg-indigo-50 text-indigo-700 shadow-sm' : 'text-slate-550 hover:bg-slate-50'
+          }`}
+        >
+          <UserCheck size={16} />
+          <span>Employees</span>
         </button>
       </div>
 
@@ -777,22 +860,49 @@ export default function AdminPage() {
                 onSubmit={(e) => {
                   e.preventDefault();
                   if (!newDepartmentName.trim()) return;
-                  createDepartmentMutation.mutate(newDepartmentName.trim());
+                  createDepartmentMutation.mutate({
+                    name: newDepartmentName.trim(),
+                    group_name: newDepartmentGroup.trim() || null,
+                    city: newDepartmentCity.trim() || null,
+                  });
                 }}
-                className="flex gap-2 max-w-md"
+                className="flex flex-wrap gap-2 max-w-2xl items-end"
               >
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Legal, IT"
-                  value={newDepartmentName}
-                  onChange={(e) => setNewDepartmentName(e.target.value)}
-                  className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                />
+                <div className="flex-1 min-w-[160px]">
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Name *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Legal, IT"
+                    value={newDepartmentName}
+                    onChange={(e) => setNewDepartmentName(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
+                <div className="flex-1 min-w-[160px]">
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Group (optional)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Regional Centers"
+                    value={newDepartmentGroup}
+                    onChange={(e) => setNewDepartmentGroup(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
+                <div className="flex-1 min-w-[140px]">
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">City (optional)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Bhopal"
+                    value={newDepartmentCity}
+                    onChange={(e) => setNewDepartmentCity(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
                 <button
                   type="submit"
                   disabled={createDepartmentMutation.isPending}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-sm"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-sm h-[38px]"
                 >
                   <Plus size={14} />
                   <span>Add Department</span>
@@ -805,18 +915,123 @@ export default function AdminPage() {
                 <div className="py-8 text-center text-slate-400 text-sm">Loading departments...</div>
               ) : departments?.map((d) => (
                 <div key={d.id} className="px-6 py-3.5 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
-                  <span className="font-semibold text-slate-800 text-sm">{d.name}</span>
-                  <button
-                    onClick={() => { if (confirm(`Remove "${d.name}" from the department list? Existing tasks/users keep their value.`)) deactivateDepartmentMutation.mutate(d.id); }}
-                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer transition-colors"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  <div>
+                    <span className="font-semibold text-slate-800 text-sm">{d.name}</span>
+                    {(d.group_name || d.city) && (
+                      <div className="text-xs text-slate-400 mt-0.5">
+                        {[d.group_name, d.city].filter(Boolean).join(' · ')}
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-x-1.5">
+                    <button
+                      onClick={() => { setEditingDepartment(d); setDepartmentModalOpen(true); }}
+                      className="p-1.5 text-slate-400 hover:text-indigo-650 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors inline-block"
+                    >
+                      <Edit2 size={14} />
+                    </button>
+                    <button
+                      onClick={() => { if (confirm(`Remove "${d.name}" from the department list? Existing tasks/users keep their value.`)) deactivateDepartmentMutation.mutate(d.id); }}
+                      className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer transition-colors inline-block"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
               ))}
               {!departmentsLoading && !departments?.length && (
                 <div className="py-8 text-center text-slate-400 text-sm">No departments yet.</div>
               )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'employees' && (
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <h3 className="font-bold text-slate-900 text-lg">Organization Hub Employees</h3>
+                <p className="text-xs text-slate-400 mt-1">{orgEmployees?.length || 0} total — search to narrow down before editing.</p>
+              </div>
+              <button
+                onClick={() => { setEditingEmployee(null); setEmployeeManagerId(''); setEmployeeUserId(''); setEmployeeModalOpen(true); }}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-sm"
+              >
+                <Plus size={14} />
+                <span>Add Employee</span>
+              </button>
+            </div>
+
+            <div className="p-6 border-b border-slate-100">
+              <div className="relative max-w-md">
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search by name, email, designation..."
+                  value={employeeSearchQuery}
+                  onChange={(e) => setEmployeeSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+                    <th className="py-3.5 px-6">Name</th>
+                    <th className="py-3.5 px-6">Email</th>
+                    <th className="py-3.5 px-6">Designation</th>
+                    <th className="py-3.5 px-6">Department</th>
+                    <th className="py-3.5 px-6">Reports To</th>
+                    <th className="py-3.5 px-6">CAMS Login</th>
+                    <th className="py-3.5 px-6 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-sm">
+                  {orgEmployeesLoading ? (
+                    <tr>
+                      <td colSpan="7" className="py-8 text-center text-slate-400">Loading employees...</td>
+                    </tr>
+                  ) : filteredOrgEmployees.map((e) => (
+                    <tr key={e.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="py-3.5 px-6 font-semibold text-slate-800">{e.full_name}</td>
+                      <td className="py-3.5 px-6 text-slate-500 text-xs">{e.email}</td>
+                      <td className="py-3.5 px-6 text-slate-500">{e.designation || '—'}</td>
+                      <td className="py-3.5 px-6 text-slate-500">{e.department_name || '—'}</td>
+                      <td className="py-3.5 px-6 text-slate-500">
+                        {e.manager_name || <span className="text-amber-600 font-semibold">None (root)</span>}
+                      </td>
+                      <td className="py-3.5 px-6">
+                        {e.user_id ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border bg-emerald-50 text-emerald-700 border-emerald-250">Linked</span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border bg-slate-50 text-slate-500 border-slate-200">Not linked</span>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-6 text-right space-x-1.5">
+                        <button
+                          onClick={() => { setEditingEmployee(e); setEmployeeManagerId(e.manager_id || ''); setEmployeeUserId(e.user_id || ''); setEmployeeModalOpen(true); }}
+                          className="p-1.5 text-slate-400 hover:text-indigo-650 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors inline-block"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                        <button
+                          onClick={() => { if (confirm(`Deactivate ${e.full_name}? They'll disappear from the Organization Hub and assignment lists.`)) deactivateEmployeeMutation.mutate(e.id); }}
+                          className="p-1.5 text-slate-400 hover:text-red-650 hover:bg-red-50 rounded-lg cursor-pointer transition-colors inline-block"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {!orgEmployeesLoading && !filteredOrgEmployees.length && (
+                    <tr>
+                      <td colSpan="7" className="py-8 text-center text-slate-400">No employees found.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
@@ -1138,6 +1353,141 @@ export default function AdminPage() {
                 </button>
                 <button type="submit" disabled={saveCentreMutation.isPending} className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-medium cursor-pointer">
                   {saveCentreMutation.isPending ? 'Saving...' : 'Save Centre'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Department edit modal */}
+      {departmentModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-slate-200 overflow-hidden transform animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center shrink-0">
+              <h3 className="font-bold text-slate-800 text-base">Edit Department</h3>
+              <button onClick={() => setDepartmentModalOpen(false)} className="text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 p-1.5 cursor-pointer">
+                <X size={18} />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const fd = new FormData(e.target);
+                updateDepartmentMutation.mutate({
+                  id: editingDepartment.id,
+                  data: {
+                    name: fd.get('name'),
+                    group_name: fd.get('group_name') || null,
+                    city: fd.get('city') || null,
+                  }
+                });
+              }}
+              className="flex flex-col flex-1 min-h-0"
+            >
+              <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Name *</label>
+                  <input type="text" required name="name" defaultValue={editingDepartment?.name || ''} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Group (optional)</label>
+                  <input type="text" name="group_name" defaultValue={editingDepartment?.group_name || ''} placeholder="e.g. Regional Centers" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">City (optional)</label>
+                  <input type="text" name="city" defaultValue={editingDepartment?.city || ''} placeholder="e.g. Bhopal" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm" />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-100 shrink-0">
+                <button type="button" onClick={() => setDepartmentModalOpen(false)} className="px-4 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-50 cursor-pointer">
+                  Cancel
+                </button>
+                <button type="submit" disabled={updateDepartmentMutation.isPending} className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-medium cursor-pointer">
+                  {updateDepartmentMutation.isPending ? 'Saving...' : 'Save Department'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Employee create / edit modal */}
+      {employeeModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-slate-200 overflow-hidden transform animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center shrink-0">
+              <h3 className="font-bold text-slate-800 text-base">{editingEmployee ? 'Edit Employee' : 'Add Employee'}</h3>
+              <button onClick={() => setEmployeeModalOpen(false)} className="text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 p-1.5 cursor-pointer">
+                <X size={18} />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const fd = new FormData(e.target);
+                saveEmployeeMutation.mutate({
+                  full_name: fd.get('full_name'),
+                  email: fd.get('email'),
+                  designation: fd.get('designation') || null,
+                  department_id: fd.get('department_id') || null,
+                  manager_id: employeeManagerId || null,
+                  user_id: employeeUserId || null,
+                });
+              }}
+              className="flex flex-col flex-1 min-h-0"
+            >
+              <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Full Name *</label>
+                  <input type="text" required name="full_name" defaultValue={editingEmployee?.full_name || ''} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Email *</label>
+                  <input type="email" required name="email" defaultValue={editingEmployee?.email || ''} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Designation</label>
+                  <input type="text" name="designation" defaultValue={editingEmployee?.designation || ''} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Department</label>
+                  <select name="department_id" defaultValue={editingEmployee?.department_id || ''} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white">
+                    <option value="">No department</option>
+                    {departments?.map(d => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Reporting Manager</label>
+                  <EmployeePicker
+                    users={employeePickerOptions}
+                    value={employeeManagerId}
+                    onChange={setEmployeeManagerId}
+                    excludeUserId={editingEmployee?.id || null}
+                    placeholder="Search employees..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Linked CAMS Login (optional)</label>
+                  <EmployeePicker
+                    users={users || []}
+                    value={employeeUserId}
+                    onChange={setEmployeeUserId}
+                    placeholder="Search CAMS users..."
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1">Only needed if this person also has a CAMS account — enables future task-visibility features.</p>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-100 shrink-0">
+                <button type="button" onClick={() => setEmployeeModalOpen(false)} className="px-4 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-50 cursor-pointer">
+                  Cancel
+                </button>
+                <button type="submit" disabled={saveEmployeeMutation.isPending} className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-medium cursor-pointer">
+                  {saveEmployeeMutation.isPending ? 'Saving...' : 'Save Employee'}
                 </button>
               </div>
             </form>

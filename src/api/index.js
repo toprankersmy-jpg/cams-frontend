@@ -24,10 +24,14 @@ export const getAllCentres = () => api.get('/api/centres').then((res) => res.dat
 // Organization Hub API
 export const getOrgHubEmployees = () => api.get('/api/org-hub/employees').then((res) => res.data);
 export const getOrgHubDepartments = () => api.get('/api/org-hub/departments').then((res) => res.data);
+export const createOrgHubEmployee = (data) => api.post('/api/org-hub/employees', data).then((res) => res.data);
+export const updateOrgHubEmployee = (id, data) => api.patch(`/api/org-hub/employees/${id}`, data).then((res) => res.data);
+export const deactivateOrgHubEmployee = (id) => api.delete(`/api/org-hub/employees/${id}`).then((res) => res.data);
 
 // Departments API
 export const getAllDepartments = () => api.get('/api/departments').then((res) => res.data);
-export const createDepartment = (name) => api.post('/api/departments', { name }).then((res) => res.data);
+export const createDepartment = (data) => api.post('/api/departments', data).then((res) => res.data);
+export const updateDepartment = (id, data) => api.patch(`/api/departments/${id}`, data).then((res) => res.data);
 export const deactivateDepartment = (id) => api.delete(`/api/departments/${id}`).then((res) => res.data);
 
 // Notifications API
