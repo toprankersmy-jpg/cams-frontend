@@ -81,6 +81,11 @@ export default function OrgHubPage() {
     () => Array.from(new Set(emps.map((e) => e.group_name).filter(Boolean))).sort(),
     [emps]
   );
+  const deptByName = useMemo(() => {
+    const m = {};
+    depts.forEach((d) => { m[d.name] = d; });
+    return m;
+  }, [depts]);
 
   const filtersActive = !!(search.trim() || filters.department || filters.manager || filters.city);
 
@@ -118,13 +123,17 @@ export default function OrgHubPage() {
       if (filtersActive && ids.length === 0) return;
 
       const expanded = filtersActive || !!expandedGroups[groupName];
+      const matchedDept = deptByName[groupName];
       rows.push({
         kind: 'group',
         key: `g:${groupName}`,
         name: groupName,
         count: ids.length,
         expanded,
-        onToggle: () => setExpandedGroups((s) => ({ ...s, [groupName]: !s[groupName] })),
+        onToggle: () => {
+          setExpandedGroups((s) => ({ ...s, [groupName]: !s[groupName] }));
+          if (matchedDept) setSelection({ type: 'department', id: matchedDept.id });
+        },
       });
       if (!expanded) return;
 
@@ -158,7 +167,7 @@ export default function OrgHubPage() {
       }
     });
     return rows;
-  }, [emps, byId, depthOf, filtersActive, matchedIds, expandedGroups, expandedCities]);
+  }, [emps, byId, depthOf, filtersActive, matchedIds, expandedGroups, expandedCities, deptByName]);
 
   const selectedEmployee = selection.type === 'employee' ? byId[selection.id] : null;
   const selectedDepartment = selection.type === 'department' ? depts.find((d) => d.id === selection.id) : null;
@@ -443,27 +452,6 @@ export default function OrgHubPage() {
           )}
         </div>
       </div>
-
-      {depts.length > 0 && (
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-          <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500 mb-2.5">Departments</div>
-          <div className="flex flex-wrap gap-2">
-            {depts.map((d) => (
-              <button
-                key={d.id}
-                onClick={() => setSelection({ type: 'department', id: d.id })}
-                className={`text-xs font-semibold px-2.5 py-1.5 rounded-lg border transition-all ${
-                  selection.type === 'department' && selection.id === d.id
-                    ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                    : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                {d.name} <span className="text-slate-400">({d.headcount})</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
