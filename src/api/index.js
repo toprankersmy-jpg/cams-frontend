@@ -13,10 +13,17 @@ export const updateTaskStatus = (id, data) => api.patch(`/api/tasks/${id}/status
 export const assignTask = (id, data) => api.patch(`/api/tasks/${id}/assign`, data).then((res) => res.data);
 export const deleteTask = (id) => api.delete(`/api/tasks/${id}`).then((res) => res.data);
 export const getTaskStats = () => api.get('/api/tasks/stats').then((res) => res.data);
+export const batchApproveRm = (batchId, centreIds) => api.patch(`/api/tasks/batch/${batchId}/rm-approve`, centreIds ? { centre_ids: centreIds } : {}).then((res) => res.data);
 
 // Task Comments API
 export const getTaskComments = (taskId) => api.get(`/api/tasks/${taskId}/comments`).then((res) => res.data);
 export const addComment = (taskId, text, isSuggestion = false) => api.post(`/api/tasks/${taskId}/comments`, { comment: text, is_suggestion: isSuggestion }).then((res) => res.data);
+
+// Private Task Review Thread (Centre Head <-> Regional Manager only) API
+export const getTaskReviews = (taskId) => api.get(`/api/tasks/${taskId}/reviews`).then((res) => res.data);
+export const raiseTaskReview = (taskId, message) => api.post(`/api/tasks/${taskId}/reviews`, { message }).then((res) => res.data);
+export const addTaskReviewMessage = (taskId, reviewId, message) => api.post(`/api/tasks/${taskId}/reviews/${reviewId}/messages`, { message }).then((res) => res.data);
+export const resolveTaskReview = (taskId, reviewId) => api.patch(`/api/tasks/${taskId}/reviews/${reviewId}/resolve`).then((res) => res.data);
 
 // Centres API
 export const getAllCentres = () => api.get('/api/centres').then((res) => res.data);

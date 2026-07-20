@@ -1,11 +1,104 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { useLocation } from 'react-router-dom';
-import { getMyTasks, getAllTasks, getAllCentres } from '../api';
-import { Search, ChevronRight, Loader2, Building } from 'lucide-react';
+import { getMyTasks, getAllTasks, getAllCentres, batchApproveRm } from '../api';
+import { Search, ChevronRight, Loader2, Building, Users } from 'lucide-react';
 import { getPriorityBadge, getStatusBadge, getTaskDueDate, getTaskLocationLabel } from '../utils/taskDisplay';
 import TaskDrawer from '../components/TaskDrawer';
+
+// RM-only panel: groups pending_rm_approval tasks (spawned from an
+// All-Centres task once HQ Manager approves it) by batch so the RM can
+// review the whole broadcast once and approve for all their centres, or
+// pick a subset. Not shown to any other role — Centre Heads can't see these
+// rows at all until the RM approves (enforced server-side, not just here).
+function RmBundlesPanel({ tasks }) {
+  const { showToast } = useToast();
+  const queryClient = useQueryClient();
+  const [selected, setSelected] = useState({});
+
+  const pending = tasks.filter((t) => t.status === 'pending_rm_approval' && t.batch_id);
+
+  const approveMutation = useMutation({
+    mutationFn: ({ batchId, centreIds }) => batchApproveRm(batchId, centreIds),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      showToast(`Approved ${data.approved} centre${data.approved === 1 ? '' : 's'}.`);
+    },
+    onError: (err) => {
+      showToast(err.response?.data?.error || 'Failed to approve batch.', 'error');
+    }
+  });
+
+  if (pending.length === 0) return null;
+
+  const batches = {};
+  pending.forEach((t) => {
+    if (!batches[t.batch_id]) batches[t.batch_id] = { title: t.title, items: [] };
+    batches[t.batch_id].items.push(t);
+  });
+
+  const toggleCentre = (batchId, centreId) => {
+    setSelected((prev) => {
+      const set = new Set(prev[batchId] || []);
+      if (set.has(centreId)) set.delete(centreId); else set.add(centreId);
+      return { ...prev, [batchId]: set };
+    });
+  };
+
+  return (
+    <div className="space-y-3">
+      <h2 className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+        <Users size={15} className="text-teal-600" />
+        All-Centres Bundles Awaiting Your Review
+      </h2>
+      {Object.entries(batches).map(([batchId, batch]) => {
+        const selectedSet = selected[batchId] || new Set();
+        return (
+          <div key={batchId} className="bg-white border border-teal-200 rounded-2xl p-4 shadow-sm space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <div className="font-bold text-slate-800 text-sm">{batch.title}</div>
+                <div className="text-xs text-slate-400">{batch.items.length} centre{batch.items.length === 1 ? '' : 's'} in your region</div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={selectedSet.size === 0 || approveMutation.isPending}
+                  onClick={() => approveMutation.mutate({ batchId, centreIds: Array.from(selectedSet) })}
+                  className="px-3 py-1.5 bg-white border border-teal-300 text-teal-700 rounded-lg text-xs font-semibold hover:bg-teal-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                >
+                  Approve Selected
+                </button>
+                <button
+                  type="button"
+                  disabled={approveMutation.isPending}
+                  onClick={() => approveMutation.mutate({ batchId })}
+                  className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-bold transition-all cursor-pointer shadow-sm"
+                >
+                  Approve All
+                </button>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {batch.items.map((t) => (
+                <label key={t.id} className="flex items-center gap-2 text-xs bg-slate-50 border border-slate-100 rounded-lg px-2 py-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedSet.has(t.target_centre_id)}
+                    onChange={() => toggleCentre(batchId, t.target_centre_id)}
+                  />
+                  <span className="font-semibold text-slate-700">{t.target_centre?.name || 'Centre'}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 const SkeletonRow = () => (
   <tr>
@@ -89,6 +182,8 @@ export default function TasksPage() {
         </div>
       )}
 
+      {user?.role === 'rm' && <RmBundlesPanel tasks={taskList} />}
+
       {/* Filter Bar */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-wrap items-center gap-3">
         {/* Search */}
@@ -111,6 +206,7 @@ export default function TasksPage() {
         >
           <option value="all">All Statuses</option>
           <option value="pending_manager_approval">Pending Manager Approval</option>
+          <option value="pending_rm_approval">Pending RM Review</option>
           <option value="active_in_ch_basket">Active in CH Basket</option>
           <option value="acknowledged">Acknowledged</option>
           <option value="in_progress">In Progress</option>

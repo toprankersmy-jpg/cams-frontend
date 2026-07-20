@@ -11,7 +11,11 @@ import {
   deleteTask,
   getResolvedPermissionsMe,
   updateTaskDueDate,
-  editTask
+  editTask,
+  getTaskReviews,
+  raiseTaskReview,
+  addTaskReviewMessage,
+  resolveTaskReview
 } from '../api';
 import {
   Clock,
@@ -26,7 +30,8 @@ import {
   Activity,
   X,
   Sparkles,
-  Trash2
+  Trash2,
+  Lock
 } from 'lucide-react';
 import { getPriorityBadge, getStatusBadge, getTaskDueDate, getTaskLocationLabel } from '../utils/taskDisplay';
 
@@ -45,6 +50,8 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
   const [editDescription, setEditDescription] = useState('');
   const [editPriority, setEditPriority] = useState('');
   const [editDueDate, setEditDueDate] = useState('');
+  const [reviewMessage, setReviewMessage] = useState('');
+  const [replyDrafts, setReplyDrafts] = useState({});
 
   // Fetch individual task details
   const { data: taskDetails, isLoading: detailsLoading } = useQuery({
@@ -60,6 +67,49 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
     queryFn: () => getTaskComments(selectedTaskId),
     enabled: !!selectedTaskId,
     retry: 1,
+  });
+
+  // Private review thread — only this task's Centre Head, Regional Manager,
+  // or admin can see it exists at all, enforced server-side too.
+  const canSeeReview = !!taskDetails && (
+    !!user?.is_admin ||
+    user?.id === taskDetails?.assigned_ch?.id ||
+    user?.id === taskDetails?.assigned_rm?.id
+  );
+
+  const { data: reviews } = useQuery({
+    queryKey: ['taskReviews', selectedTaskId],
+    queryFn: () => getTaskReviews(selectedTaskId),
+    enabled: !!selectedTaskId && canSeeReview,
+    retry: 1,
+  });
+
+  const raiseReviewMutation = useMutation({
+    mutationFn: (message) => raiseTaskReview(selectedTaskId, message),
+    onSuccess: () => {
+      setReviewMessage('');
+      queryClient.invalidateQueries({ queryKey: ['taskReviews', selectedTaskId] });
+      showToast('Review raised with RM.');
+    },
+    onError: (err) => showToast(err.response?.data?.error || 'Failed to raise review.', 'error')
+  });
+
+  const replyReviewMutation = useMutation({
+    mutationFn: ({ reviewId, message }) => addTaskReviewMessage(selectedTaskId, reviewId, message),
+    onSuccess: (_data, variables) => {
+      setReplyDrafts((prev) => ({ ...prev, [variables.reviewId]: '' }));
+      queryClient.invalidateQueries({ queryKey: ['taskReviews', selectedTaskId] });
+    },
+    onError: (err) => showToast(err.response?.data?.error || 'Failed to send reply.', 'error')
+  });
+
+  const resolveReviewMutation = useMutation({
+    mutationFn: (reviewId) => resolveTaskReview(selectedTaskId, reviewId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['taskReviews', selectedTaskId] });
+      showToast('Review marked resolved.');
+    },
+    onError: (err) => showToast(err.response?.data?.error || 'Failed to resolve review.', 'error')
   });
 
   // Add Comment Mutation
@@ -777,6 +827,100 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
                       Post Labeled Suggestion
                     </button>
                   </form>
+                </div>
+              )}
+
+              {/* Private Review (Centre Head <-> RM only — not visible to anyone else) */}
+              {canSeeReview && (
+                <div className="border-t border-slate-100 pt-6 space-y-3">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 font-mono">
+                    <Lock size={14} className="text-slate-400" />
+                    <span>Private Review (Centre Head ↔ RM)</span>
+                  </h4>
+                  <p className="text-[10px] text-slate-400 -mt-2">Only visible to this task's Centre Head, Regional Manager, and admin.</p>
+
+                  {(reviews || []).map((r) => (
+                    <div key={r.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-2">
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="font-bold text-slate-500">
+                          Raised by {r.raised_by?.name || 'Unknown'} · {r.status === 'open' ? 'Open' : 'Resolved'}
+                        </span>
+                        {r.status === 'open' && (
+                          <button
+                            type="button"
+                            onClick={() => resolveReviewMutation.mutate(r.id)}
+                            className="text-emerald-600 hover:text-emerald-700 font-bold cursor-pointer"
+                          >
+                            Mark Resolved
+                          </button>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        {r.messages?.map((m) => (
+                          <div key={m.id} className="text-xs">
+                            <span className="font-bold text-slate-700">{m.sender?.name || 'Unknown'}: </span>
+                            <span className="text-slate-600">{m.message}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {r.status === 'open' && (
+                        <form
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            const text = (replyDrafts[r.id] || '').trim();
+                            if (!text) return;
+                            replyReviewMutation.mutate({ reviewId: r.id, message: text });
+                          }}
+                          className="flex gap-2 pt-1"
+                        >
+                          <input
+                            type="text"
+                            placeholder="Reply privately..."
+                            value={replyDrafts[r.id] || ''}
+                            onChange={(e) => setReplyDrafts((prev) => ({ ...prev, [r.id]: e.target.value }))}
+                            className="flex-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                          />
+                          <button
+                            type="submit"
+                            disabled={replyReviewMutation.isPending}
+                            className="bg-slate-900 hover:bg-black text-white rounded-lg px-3 text-xs font-bold cursor-pointer transition-all"
+                          >
+                            Send
+                          </button>
+                        </form>
+                      )}
+                    </div>
+                  ))}
+
+                  {!reviews?.length && (
+                    <p className="text-xs text-center text-slate-400 py-2 italic">No private reviews yet.</p>
+                  )}
+
+                  {user?.id === taskDetails?.assigned_ch?.id && !reviews?.some((r) => r.status === 'open') && (
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (!reviewMessage.trim()) return;
+                        raiseReviewMutation.mutate(reviewMessage.trim());
+                      }}
+                      className="space-y-2"
+                    >
+                      <textarea
+                        rows="2"
+                        placeholder="Raise a private review with your RM..."
+                        value={reviewMessage}
+                        onChange={(e) => setReviewMessage(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-400 resize-none leading-relaxed"
+                      />
+                      <button
+                        type="submit"
+                        disabled={raiseReviewMutation.isPending}
+                        className="w-full bg-teal-600 hover:bg-teal-700 text-white rounded-lg py-2 px-3 text-xs font-bold transition-all cursor-pointer shadow-sm"
+                      >
+                        Raise Review with RM
+                      </button>
+                    </form>
+                  )}
                 </div>
               )}
 

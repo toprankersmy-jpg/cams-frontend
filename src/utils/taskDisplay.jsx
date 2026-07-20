@@ -41,6 +41,7 @@ export const getPriorityBadge = (priority) => {
 export const getStatusBadge = (status) => {
   const styles = {
     pending_manager_approval: 'bg-amber-50 text-amber-700 border-amber-200',
+    pending_rm_approval: 'bg-teal-50 text-teal-700 border-teal-200',
     active_in_ch_basket: 'bg-blue-50 text-blue-700 border-blue-200',
     acknowledged: 'bg-indigo-50 text-indigo-700 border-indigo-200',
     in_progress: 'bg-violet-50 text-violet-700 border-violet-200',
@@ -51,7 +52,7 @@ export const getStatusBadge = (status) => {
     blocked: 'bg-orange-50 text-orange-700 border-orange-200',
     reopened: 'bg-cyan-50 text-cyan-700 border-cyan-200',
   };
-  const labelOverrides = { pending_ch_review: 'Pending CH Review' };
+  const labelOverrides = { pending_ch_review: 'Pending CH Review', pending_rm_approval: 'Pending RM Review' };
   const label = status ? (labelOverrides[status] || status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())) : 'Unknown';
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${styles[status] || 'bg-slate-50 text-slate-650 border-slate-200'}`}>
