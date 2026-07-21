@@ -264,28 +264,33 @@ export default function Layout() {
 
         {/* Sidebar Footer (Notifications & Logout) */}
         <div className="p-4 border-t border-slate-100 space-y-2 shrink-0">
-          {/* Notifications Bell */}
-          <Link
-            to="/notifications"
-            className="flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <Bell size={18} className="text-slate-500" />
-                {unreadData?.count > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center text-[9px] font-bold border border-white animate-pulse">
-                    {unreadData.count}
-                  </span>
-                )}
+          {/* Notifications Bell — hidden unless the user actually has
+              page:notifications; showing it regardless used to dead-end on
+              click for anyone lacking the permission, since the route itself
+              still enforces it. */}
+          {(user?.is_admin || myPermissions?.['page:notifications']) && (
+            <Link
+              to="/notifications"
+              className="flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <Bell size={18} className="text-slate-500" />
+                  {unreadData?.count > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center text-[9px] font-bold border border-white animate-pulse">
+                      {unreadData.count}
+                    </span>
+                  )}
+                </div>
+                <span>Notifications</span>
               </div>
-              <span>Notifications</span>
-            </div>
-            {unreadData?.count > 0 && (
-              <span className="bg-red-50 text-red-600 text-xs px-2 py-0.5 rounded-full font-bold">
-                {unreadData.count} new
-              </span>
-            )}
-          </Link>
+              {unreadData?.count > 0 && (
+                <span className="bg-red-50 text-red-600 text-xs px-2 py-0.5 rounded-full font-bold">
+                  {unreadData.count} new
+                </span>
+              )}
+            </Link>
+          )}
 
           {/* Logout Button */}
           <button

@@ -12,13 +12,19 @@ export default function KanbanPage() {
   const [deptFilter, setDeptFilter] = useState('all');
   const [selectedTaskId, setSelectedTaskId] = useState(null);
 
-  const canSeeAll = ['leadership', 'hq_manager', 'rm'].includes(user?.role);
+  // 'rm' used to be on this list too, which meant an RM's Kanban board
+  // showed every task in the system rather than their own — an accidental
+  // over-scope. Now that getMyTasks correctly includes an RM's own basket
+  // plus any task directly assigned to them, rm no longer needs the
+  // unscoped fetch.
+  const canSeeAll = ['leadership', 'hq_manager'].includes(user?.role);
 
   // Fetch tasks
   const { data: tasks, isLoading, error } = useQuery({
     queryKey: ['tasks', canSeeAll ? 'all' : 'my'],
     queryFn: canSeeAll ? getAllTasks : getMyTasks,
     retry: 1,
+    refetchInterval: 15000, // keep the board live without a manual refresh
   });
 
   const taskList = Array.isArray(tasks) ? tasks : (tasks?.tasks || tasks?.data || []);

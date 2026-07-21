@@ -31,7 +31,8 @@ const actionPermissionKeys = [
   { key: 'task:priority:view', label: 'View Priority' },
   { key: 'task:priority:suggest', label: 'Suggest Priority' },
   { key: 'task:priority:set', label: 'Set Final Priority (RM)' },
-  { key: 'task:priority:override', label: 'Override Priority (Leadership)' }
+  { key: 'task:priority:override', label: 'Override Priority (Leadership)' },
+  { key: 'task:due_date:extend', label: 'Extend Due Date' }
 ];
 
 export default function AdminPage() {

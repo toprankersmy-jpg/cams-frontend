@@ -138,6 +138,7 @@ export default function TasksPage() {
     queryKey: ['tasks', canSeeAll ? 'all' : 'my'],
     queryFn: canSeeAll ? getAllTasks : getMyTasks,
     retry: 1,
+    refetchInterval: 15000, // keep the task list live without a manual refresh
   });
 
   // Fetch all centres for filtering
@@ -151,16 +152,21 @@ export default function TasksPage() {
   const centreList = Array.isArray(centres) ? centres : (centres?.centres || centres?.data || []);
 
   const filtered = taskList.filter((t) => {
+    // RM already sees pending_rm_approval rows in the dedicated bundle panel
+    // above — don't also list them here, or the same task shows up twice
+    // with no link between the two views.
+    if (user?.role === 'rm' && t.status === 'pending_rm_approval') return false;
+
     const matchSearch = !searchText || t.title?.toLowerCase().includes(searchText.toLowerCase());
     const matchStatus = statusFilter === 'all' || t.status === statusFilter;
-    
+
     // Support proposed and final priorities in filter check
     const taskPriorityVal = t.final_priority || t.proposed_priority || '';
     const matchPriority = priorityFilter === 'all' || taskPriorityVal.toLowerCase() === priorityFilter.toLowerCase();
-    
+
     // Filter by centre
     const matchCentre = centreFilter === 'all' || t.target_centre_id === centreFilter;
-    
+
     return matchSearch && matchStatus && matchPriority && matchCentre;
   });
 
@@ -284,8 +290,8 @@ export default function TasksPage() {
                     <td className="py-3.5 px-6">{getPriorityBadge(currentPriority)}</td>
                     <td className="py-3.5 px-6">{getStatusBadge(t.status)}</td>
                     <td className="py-3.5 px-6 text-slate-500">
-                      {getTaskDueDate(t, user?.role) 
-                        ? getTaskDueDate(t, user?.role).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) 
+                      {getTaskDueDate(t) 
+                        ? getTaskDueDate(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) 
                         : '—'}
                     </td>
                     <td className="py-3.5 px-6 text-right">

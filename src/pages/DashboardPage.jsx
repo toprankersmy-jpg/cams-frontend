@@ -36,12 +36,14 @@ export default function DashboardPage() {
     queryKey: ['taskStats'],
     queryFn: getTaskStats,
     retry: 1,
+    refetchInterval: 15000, // keep dashboard counts live without a manual refresh
   });
 
   const { data: tasks, isLoading: tasksLoading, error: tasksError } = useQuery({
     queryKey: ['myTasks'],
     queryFn: getMyTasks,
     retry: 1,
+    refetchInterval: 15000,
   });
 
   // Update Status Mutation (reused for approval cards)
@@ -259,8 +261,8 @@ export default function DashboardPage() {
                   <div className="flex items-center justify-between text-slate-500">
                     <span className="flex items-center gap-1"><Calendar size={13} /> Due Date:</span>
                     <span className="font-bold text-slate-700">
-                      {getTaskDueDate(t, user?.role) 
-                        ? getTaskDueDate(t, user?.role).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) 
+                      {getTaskDueDate(t) 
+                        ? getTaskDueDate(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) 
                         : '—'}
                     </span>
                   </div>
@@ -314,8 +316,8 @@ export default function DashboardPage() {
                   <div className="flex items-center justify-between text-slate-500">
                     <span className="flex items-center gap-1"><Calendar size={13} /> Due Date:</span>
                     <span className="font-bold text-slate-700">
-                      {getTaskDueDate(t, user?.role) 
-                        ? getTaskDueDate(t, user?.role).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) 
+                      {getTaskDueDate(t) 
+                        ? getTaskDueDate(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) 
                         : '—'}
                     </span>
                   </div>
@@ -400,7 +402,7 @@ export default function DashboardPage() {
                     {getStatusBadge(t.status)}
                   </td>
                   <td className="py-3.5 px-6 text-slate-500 font-medium">
-                    {getTaskDueDate(t, user?.role) ? getTaskDueDate(t, user?.role).toLocaleDateString(undefined, {
+                    {getTaskDueDate(t) ? getTaskDueDate(t).toLocaleDateString(undefined, {
                       month: 'short',
                       day: 'numeric',
                       year: 'numeric'

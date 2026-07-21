@@ -186,24 +186,39 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
       if (reason === null) return;
       payload.rejection_reason = reason || undefined;
     } else if (status === 'in_progress' && user?.role === 'rm' && taskDetails?.status === 'active_in_ch_basket') {
-      const fp = prompt('Please enter final priority (P1, P2, P3, or P4) or leave empty:');
-      if (fp === null) return; // user cancelled
-      const normalized = fp.trim().toUpperCase();
-      if (normalized) {
-        if (!['P1', 'P2', 'P3', 'P4'].includes(normalized)) {
-          showToast('Final priority must be one of P1, P2, P3, or P4.', 'error');
-          return;
+      // Only prompt for a priority the user is actually allowed to set —
+      // otherwise submitting it fails the whole "Start Task" action with a
+      // 403 instead of just skipping the optional priority part.
+      const canSetPriority = user?.is_admin || myPermissions?.['task:priority:set'];
+      if (canSetPriority) {
+        const fp = prompt('Please enter final priority (P1, P2, P3, or P4) or leave empty:');
+        if (fp === null) return; // user cancelled
+        const normalized = fp.trim().toUpperCase();
+        if (normalized) {
+          if (!['P1', 'P2', 'P3', 'P4'].includes(normalized)) {
+            showToast('Final priority must be one of P1, P2, P3, or P4.', 'error');
+            return;
+          }
+          payload.final_priority = normalized;
         }
-        payload.final_priority = normalized;
       }
     } else if (status === 'in_progress' && user?.role === 'centre_head' && taskDetails?.status === 'pending_ch_review') {
       const feedback = prompt('Please explain why this is being sent back:');
       if (!feedback) return;
       payload.review_feedback = feedback;
     } else if (status === 'completed') {
-      const note = prompt('Add a completion note (optional):');
+      const isLeadershipOrAdmin = user?.role === 'leadership' || user?.is_admin;
+      const note = prompt(isLeadershipOrAdmin ? 'Add a completion note (optional):' : 'Add a completion note (required):');
       if (note === null) return;
+      if (!isLeadershipOrAdmin && !note.trim()) {
+        showToast('A completion note is required to mark this task complete.', 'error');
+        return;
+      }
       payload.completion_note = note || undefined;
+    } else if (status === 'declined') {
+      const reason = prompt('Reason for declining (optional):');
+      if (reason === null) return;
+      payload.decline_reason = reason || undefined;
     }
     updateStatusMutation.mutate({ taskId: selectedTaskId, ...payload });
   };
@@ -321,6 +336,12 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
           list.push({ status: 'rejected', label: 'Reject' });
         } else if (status === 'completed' || status === 'closed') {
           list.push({ status: 'reopened', label: 'Reopen' });
+        } else if (status === 'in_progress') {
+          // Blocking is effectively declining a task mid-flight, which sits
+          // with RM/Leadership rather than Centre Head.
+          list.push({ status: 'blocked', label: 'Mark Blocked' });
+        } else if (status === 'blocked') {
+          list.push({ status: 'in_progress', label: 'Unblock (Resume)' });
         }
       }
     } else if (role === 'centre_head') {
@@ -331,7 +352,6 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
           list.push({ status: 'in_progress', label: 'Start Work' });
         } else if (status === 'in_progress') {
           list.push({ status: 'completed', label: 'Mark Completed' });
-          list.push({ status: 'blocked', label: 'Mark Blocked' });
         } else if (status === 'pending_ch_review') {
           list.push({ status: 'completed', label: 'Approve & Complete' });
           list.push({ status: 'in_progress', label: 'Needs Rework' });
@@ -344,6 +364,10 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
     } else if (role === 'leadership' || role === 'hq_executive') {
       if (status === 'completed' || status === 'closed') {
         list.push({ status: 'reopened', label: 'Reopen' });
+      } else if (role === 'leadership' && status === 'in_progress') {
+        list.push({ status: 'blocked', label: 'Mark Blocked' });
+      } else if (role === 'leadership' && status === 'blocked') {
+        list.push({ status: 'in_progress', label: 'Unblock (Resume)' });
       }
     }
     return list;
@@ -477,8 +501,8 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
                   <span className="text-slate-400 font-semibold">Due Date</span>
                   <span className="font-semibold text-slate-700 flex items-center gap-1">
                     <Calendar size={14} className="text-slate-400" />
-                    {getTaskDueDate(taskDetails, user?.role) 
-                      ? getTaskDueDate(taskDetails, user?.role).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) 
+                    {getTaskDueDate(taskDetails) 
+                      ? getTaskDueDate(taskDetails).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) 
                       : '—'}
                   </span>
                 </div>
@@ -638,6 +662,7 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
                 {((user?.role === 'hq_manager' || user?.is_admin) && taskDetails?.status === 'pending_manager_approval') && (
                   <ManagerApprovalBlock
                     task={taskDetails}
+                    canSuggestPriority={!!(user?.is_admin || myPermissions?.['task:priority:suggest'])}
                     onApprove={(priorityVal) => {
                       updateStatusMutation.mutate({
                         taskId: selectedTaskId,
@@ -678,6 +703,61 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
                     >
                       Submit for Review
                     </button>
+                  </div>
+                )}
+
+                {/* Request — stage 1: the requester's own manager reviews it
+                    before the senior target ever sees it. */}
+                {(taskDetails?.is_request && taskDetails?.status === 'pending_request_approval' &&
+                  (user?.is_admin || user?.id === taskDetails?.requested_by?.manager_id)) && (
+                  <div className="space-y-2 p-3 bg-indigo-50 rounded-xl border border-indigo-200">
+                    <p className="text-xs text-indigo-700">
+                      <strong>{taskDetails?.requested_by?.name}</strong> wants to assign this task to{' '}
+                      <strong>{taskDetails?.assigned_person?.name}</strong>, who is senior to them. Approve to send it
+                      to {taskDetails?.assigned_person?.name} for their own Accept/Decline, or reject the request.
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => updateStatusMutation.mutate({ taskId: selectedTaskId, status: 'pending_target_response' })}
+                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold cursor-pointer transition-all"
+                      >
+                        Approve Request
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleStatusChange('rejected')}
+                        className="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-650 rounded-lg text-xs font-semibold cursor-pointer transition-all"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Request — stage 2: the senior target Accepts or Declines. */}
+                {(taskDetails?.is_request && taskDetails?.status === 'pending_target_response' &&
+                  (user?.is_admin || user?.id === taskDetails?.assigned_person_id)) && (
+                  <div className="space-y-2 p-3 bg-indigo-50 rounded-xl border border-indigo-200">
+                    <p className="text-xs text-indigo-700">
+                      <strong>{taskDetails?.requested_by?.name}</strong> is requesting that you take on this task.
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleStatusChange('in_progress')}
+                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold cursor-pointer transition-all"
+                      >
+                        Accept
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleStatusChange('declined')}
+                        className="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-650 rounded-lg text-xs font-semibold cursor-pointer transition-all"
+                      >
+                        Decline
+                      </button>
+                    </div>
                   </div>
                 )}
 
