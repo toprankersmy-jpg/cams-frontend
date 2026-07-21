@@ -54,7 +54,7 @@ export default function Layout() {
   const { data: unreadData } = useQuery({
     queryKey: ['unreadCount'],
     queryFn: getUnreadCount,
-    refetchInterval: 15000, // Poll every 15 seconds
+    refetchInterval: 4000, // Poll every 4 seconds
     enabled: !!user,
   });
 

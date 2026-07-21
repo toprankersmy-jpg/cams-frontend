@@ -36,14 +36,14 @@ export default function DashboardPage() {
     queryKey: ['taskStats'],
     queryFn: getTaskStats,
     retry: 1,
-    refetchInterval: 15000, // keep dashboard counts live without a manual refresh
+    refetchInterval: 4000, // keep dashboard counts live without a manual refresh
   });
 
   const { data: tasks, isLoading: tasksLoading, error: tasksError } = useQuery({
     queryKey: ['myTasks'],
     queryFn: getMyTasks,
     retry: 1,
-    refetchInterval: 15000,
+    refetchInterval: 4000,
   });
 
   // Update Status Mutation (reused for approval cards)

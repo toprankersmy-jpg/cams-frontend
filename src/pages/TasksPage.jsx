@@ -167,7 +167,7 @@ export default function TasksPage() {
     queryKey: ['tasks', canSeeAll ? 'all' : 'my'],
     queryFn: canSeeAll ? getAllTasks : getMyTasks,
     retry: 1,
-    refetchInterval: 15000, // keep the task list live without a manual refresh
+    refetchInterval: 4000, // keep the task list live without a manual refresh
   });
 
   // Fetch all centres for filtering

@@ -24,7 +24,7 @@ export default function KanbanPage() {
     queryKey: ['tasks', canSeeAll ? 'all' : 'my'],
     queryFn: canSeeAll ? getAllTasks : getMyTasks,
     retry: 1,
-    refetchInterval: 15000, // keep the board live without a manual refresh
+    refetchInterval: 4000, // keep the board live without a manual refresh
   });
 
   const taskList = Array.isArray(tasks) ? tasks : (tasks?.tasks || tasks?.data || []);
