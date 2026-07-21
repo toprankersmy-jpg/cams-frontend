@@ -491,7 +491,7 @@ export default function TaskDrawer({ selectedTaskId, onClose }) {
                   {getStatusBadge(taskDetails?.status)}
                 </div>
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400 font-semibold">Centre</span>
+                  <span className="text-slate-400 font-semibold">Location</span>
                   <span className="font-semibold text-slate-700 flex items-center gap-1">
                     <Building size={14} className="text-slate-400" />
                     {getTaskLocationLabel(taskDetails)}

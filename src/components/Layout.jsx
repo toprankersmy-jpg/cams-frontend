@@ -481,7 +481,16 @@ export default function Layout() {
 
               {targetType === 'specific_person' && (
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Assign To Employee *</label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Assign To Employee *</label>
+                    <button
+                      type="button"
+                      onClick={() => setAssignedPersonId(user?.id)}
+                      className={`text-[11px] font-bold px-2 py-0.5 rounded-full transition-all ${assignedPersonId === user?.id ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-650 hover:bg-indigo-100'}`}
+                    >
+                      Assign to Myself
+                    </button>
+                  </div>
                   <EmployeePicker
                     users={userDirectory}
                     value={assignedPersonId}

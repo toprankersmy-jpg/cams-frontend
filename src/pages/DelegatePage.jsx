@@ -68,7 +68,9 @@ export default function DelegatePage() {
   const centreList = Array.isArray(centres) ? centres : (centres?.centres || centres?.data || []);
   const employeeList = Array.isArray(orgHubEmployees) ? orgHubEmployees : (orgHubEmployees?.employees || orgHubEmployees?.data || []);
 
-  const personDirectory = directoryList.filter((emp) => emp.id !== user?.id);
+  // Include self in the pool — sometimes a person wants to just keep a task
+  // and work on it themselves rather than hand it off to someone else.
+  const personDirectory = directoryList;
 
   // Resolve "my reports": find my own Org Hub employee record (linked via
   // user_id), then everyone whose manager_id points back to it, then map
@@ -206,28 +208,39 @@ export default function DelegatePage() {
 
             {/* Assignee Picker */}
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">
                   {isExecMode ? 'Assign to Centre Executive *' : 'Assign to Employee *'}
                 </label>
-                {!isExecMode && myReports.length > 0 && (
-                  <div className="flex gap-1 bg-slate-100 p-0.5 rounded-lg">
+                <div className="flex items-center gap-2">
+                  {!isExecMode && (
                     <button
                       type="button"
-                      onClick={() => setScope('reports')}
-                      className={`px-2 py-1 rounded-md text-[11px] font-bold transition-all flex items-center gap-1 ${scope === 'reports' ? 'bg-white text-indigo-650 shadow-sm' : 'text-slate-500'}`}
+                      onClick={() => setSelectedAssigneeId(user?.id)}
+                      className={`text-[11px] font-bold px-2 py-1 rounded-full transition-all ${selectedAssigneeId === user?.id ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-650 hover:bg-indigo-100'}`}
                     >
-                      <Users size={11} /> My Reports
+                      Assign to Myself
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setScope('all')}
-                      className={`px-2 py-1 rounded-md text-[11px] font-bold transition-all ${scope === 'all' ? 'bg-white text-indigo-650 shadow-sm' : 'text-slate-500'}`}
-                    >
-                      Everyone
-                    </button>
-                  </div>
-                )}
+                  )}
+                  {!isExecMode && myReports.length > 0 && (
+                    <div className="flex gap-1 bg-slate-100 p-0.5 rounded-lg">
+                      <button
+                        type="button"
+                        onClick={() => setScope('reports')}
+                        className={`px-2 py-1 rounded-md text-[11px] font-bold transition-all flex items-center gap-1 ${scope === 'reports' ? 'bg-white text-indigo-650 shadow-sm' : 'text-slate-500'}`}
+                      >
+                        <Users size={11} /> My Reports
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setScope('all')}
+                        className={`px-2 py-1 rounded-md text-[11px] font-bold transition-all ${scope === 'all' ? 'bg-white text-indigo-650 shadow-sm' : 'text-slate-500'}`}
+                      >
+                        Everyone
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
               {isExecMode ? (
                 <select

@@ -110,20 +110,44 @@ const SkeletonRow = () => (
   </tr>
 );
 
-// Default status filter per role so people still land on their relevant
-// queue (e.g. HQ Manager on pending approvals) without needing a separate
-// nav tab per queue — still just a starting point, fully overridable below.
-const defaultStatusForRole = (role) => {
-  if (role === 'hq_manager') return 'pending_manager_approval';
-  if (role === 'rm') return 'active_in_ch_basket';
-  return 'all';
-};
+function TaskRow({ t, onView }) {
+  const id = t._id || t.id || '';
+  const currentPriority = t.final_priority || t.proposed_priority;
+  return (
+    <tr className="hover:bg-slate-50/50 transition-colors">
+      <td className="py-3.5 px-6 font-mono text-xs text-slate-400">{id.slice(-6).toUpperCase()}</td>
+      <td className="py-3.5 px-6 font-semibold text-slate-800">{t.title}</td>
+      <td className="py-3.5 px-6 text-slate-650 flex items-center gap-1.5 mt-2">
+        <Building size={13} className="text-slate-400" />
+        <span>{getTaskLocationLabel(t)}</span>
+      </td>
+      <td className="py-3.5 px-6">{getPriorityBadge(currentPriority)}</td>
+      <td className="py-3.5 px-6">{getStatusBadge(t.status)}</td>
+      <td className="py-3.5 px-6 text-slate-500">
+        {getTaskDueDate(t)
+          ? getTaskDueDate(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+          : '—'}
+      </td>
+      <td className="py-3.5 px-6 text-right">
+        <button
+          onClick={() => onView(id)}
+          className="inline-flex items-center gap-1 bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer shadow-sm"
+        >
+          View <ChevronRight size={14} />
+        </button>
+      </td>
+    </tr>
+  );
+}
 
 export default function TasksPage() {
   const { user } = useAuth();
   const location = useLocation();
   const [searchText, setSearchText] = useState('');
-  const [statusFilter, setStatusFilter] = useState(defaultStatusForRole(user?.role));
+  // Everyone starts on "All Statuses" — a per-role default used to narrow
+  // this to just one status (e.g. RM landing on Active in CH Basket only),
+  // which silently hid every other task until the filter was changed by hand.
+  const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [centreFilter, setCentreFilter] = useState(location.state?.filterCentreId || 'all');
   const [selectedTaskId, setSelectedTaskId] = useState(null);
@@ -132,6 +156,11 @@ export default function TasksPage() {
   // pages ("My Department"/"My Region") must use the role-scoped getMyTasks
   // — not everyone else's tasks too.
   const canSeeAll = user?.role === 'leadership';
+  // Leadership's list is otherwise the whole company in one flat table —
+  // easy for their own work to get lost in it. Default to "My Tasks" (things
+  // they personally initiated, are assigned, or manage) with one click to
+  // "Everyone", which groups by department instead of staying one long list.
+  const [scope, setScope] = useState('mine');
 
   // Fetch tasks
   const { data: tasks, isLoading, error } = useQuery({
@@ -148,8 +177,20 @@ export default function TasksPage() {
     retry: 1,
   });
 
-  const taskList = Array.isArray(tasks) ? tasks : (tasks?.tasks || tasks?.data || []);
+  const allTaskList = Array.isArray(tasks) ? tasks : (tasks?.tasks || tasks?.data || []);
   const centreList = Array.isArray(centres) ? centres : (centres?.centres || centres?.data || []);
+
+  // For leadership in "My Tasks" scope: only tasks they personally initiated,
+  // are the direct assignee of, or manage as the assigned_manager — not the
+  // whole company.
+  const taskList = (canSeeAll && scope === 'mine')
+    ? allTaskList.filter((t) =>
+        t.initiated_by?.id === user?.id ||
+        t.assigned_person_id === user?.id ||
+        t.assigned_manager === user?.id ||
+        t.approved_by_manager?.id === user?.id
+      )
+    : allTaskList;
 
   const filtered = taskList.filter((t) => {
     // RM already sees pending_rm_approval rows in the dedicated bundle panel
@@ -170,13 +211,53 @@ export default function TasksPage() {
     return matchSearch && matchStatus && matchPriority && matchCentre;
   });
 
+  // Leadership's "Everyone" view groups by department instead of staying one
+  // long flat list — a lightweight stand-in for real org-hierarchy grouping
+  // until Org Hub's fuller design lands.
+  const groupByDepartment = canSeeAll && scope === 'all';
+  const groupedRows = [];
+  if (groupByDepartment) {
+    const groups = {};
+    filtered.forEach((t) => {
+      const key = t.department || 'Unassigned';
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(t);
+    });
+    Object.keys(groups).sort((a, b) => a.localeCompare(b)).forEach((key) => {
+      groupedRows.push({ type: 'group', key });
+      groups[key].forEach((t) => groupedRows.push({ type: 'task', task: t }));
+    });
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Tasks</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          {canSeeAll ? 'Viewing all centre tasks across the system' : 'Viewing tasks assigned to you'}
-        </p>
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Tasks</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            {canSeeAll
+              ? (scope === 'mine' ? 'Tasks you initiated, manage, or are directly assigned' : 'Every task across the company, grouped by department')
+              : 'Viewing tasks assigned to you'}
+          </p>
+        </div>
+        {canSeeAll && (
+          <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setScope('mine')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${scope === 'mine' ? 'bg-white text-indigo-650 shadow-sm' : 'text-slate-500'}`}
+            >
+              My Tasks
+            </button>
+            <button
+              type="button"
+              onClick={() => setScope('all')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${scope === 'all' ? 'bg-white text-indigo-650 shadow-sm' : 'text-slate-500'}`}
+            >
+              Everyone
+            </button>
+          </div>
+        )}
       </div>
 
       {error && (
@@ -267,7 +348,7 @@ export default function TasksPage() {
               <tr className="border-b border-slate-200 bg-slate-50 text-slate-400 text-[11px] font-bold uppercase tracking-wider">
                 <th className="py-3 px-6">#</th>
                 <th className="py-3 px-6">Task Title</th>
-                <th className="py-3 px-6">Centre</th>
+                <th className="py-3 px-6">Location</th>
                 <th className="py-3 px-6">Priority</th>
                 <th className="py-3 px-6">Status</th>
                 <th className="py-3 px-6">Due Date</th>
@@ -276,35 +357,20 @@ export default function TasksPage() {
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
               {isLoading && [...Array(5)].map((_, i) => <SkeletonRow key={i} />)}
-              {!isLoading && filtered.map((t) => {
-                const id = t._id || t.id || '';
-                const currentPriority = t.final_priority || t.proposed_priority;
-                return (
-                  <tr key={id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="py-3.5 px-6 font-mono text-xs text-slate-400">{id.slice(-6).toUpperCase()}</td>
-                    <td className="py-3.5 px-6 font-semibold text-slate-800">{t.title}</td>
-                    <td className="py-3.5 px-6 text-slate-650 flex items-center gap-1.5 mt-2">
-                      <Building size={13} className="text-slate-400" />
-                      <span>{getTaskLocationLabel(t)}</span>
-                    </td>
-                    <td className="py-3.5 px-6">{getPriorityBadge(currentPriority)}</td>
-                    <td className="py-3.5 px-6">{getStatusBadge(t.status)}</td>
-                    <td className="py-3.5 px-6 text-slate-500">
-                      {getTaskDueDate(t) 
-                        ? getTaskDueDate(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) 
-                        : '—'}
-                    </td>
-                    <td className="py-3.5 px-6 text-right">
-                      <button
-                        onClick={() => setSelectedTaskId(id)}
-                        className="inline-flex items-center gap-1 bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer shadow-sm"
-                      >
-                        View <ChevronRight size={14} />
-                      </button>
+              {!isLoading && groupByDepartment && groupedRows.map((row) =>
+                row.type === 'group' ? (
+                  <tr key={`group-${row.key}`} className="bg-slate-50">
+                    <td colSpan="7" className="py-2 px-6 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                      {row.key}
                     </td>
                   </tr>
-                );
-              })}
+                ) : (
+                  <TaskRow key={row.task._id || row.task.id} t={row.task} onView={setSelectedTaskId} />
+                )
+              )}
+              {!isLoading && !groupByDepartment && filtered.map((t) => (
+                <TaskRow key={t._id || t.id} t={t} onView={setSelectedTaskId} />
+              ))}
               {!isLoading && filtered.length === 0 && (
                 <tr>
                   <td colSpan="7" className="py-12 text-center text-slate-400">

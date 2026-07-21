@@ -375,7 +375,7 @@ export default function DashboardPage() {
               <tr className="border-b border-slate-200 bg-slate-50 text-slate-400 text-[11px] font-bold uppercase tracking-wider">
                 <th className="py-3 px-6">ID</th>
                 <th className="py-3 px-6">Task Title</th>
-                <th className="py-3 px-6">Centre</th>
+                <th className="py-3 px-6">Location</th>
                 <th className="py-3 px-6">Priority</th>
                 <th className="py-3 px-6">Status</th>
                 <th className="py-3 px-6">Due Date</th>
