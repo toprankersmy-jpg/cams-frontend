@@ -16,13 +16,18 @@ export default function KanbanPage() {
   // showed every task in the system rather than their own — an accidental
   // over-scope. Now that getMyTasks correctly includes an RM's own basket
   // plus any task directly assigned to them, rm no longer needs the
-  // unscoped fetch.
-  const canSeeAll = ['leadership', 'hq_manager'].includes(user?.role);
+  // unscoped fetch. 'hq_manager' had the exact same bug (missed when rm was
+  // fixed): getMyTasks's hq_manager branch already scopes correctly
+  // (approved_by_manager, pending-approval department match, direct
+  // assignment) — canSeeAll was handing them getAllTasks regardless,
+  // showing every task in the company including ones they have no
+  // relationship to at all. Only leadership actually needs the unscoped
+  // fetch (for the Everyone toggle below).
+  const canSeeAll = user?.role === 'leadership';
   // Leadership's board defaults to their own tasks, same "My Tasks/Everyone"
   // toggle already shipped on TasksPage.jsx/DashboardPage.jsx — otherwise
-  // it's every task in the company on first load. hq_manager keeps its
-  // existing unscoped board (not part of this toggle, unchanged behavior).
-  const canToggleScope = user?.role === 'leadership';
+  // it's every task in the company on first load.
+  const canToggleScope = canSeeAll;
   const [scope, setScope] = useState('mine');
 
   // Fetch tasks
