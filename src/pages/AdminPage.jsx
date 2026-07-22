@@ -55,6 +55,7 @@ export default function AdminPage() {
   const [employeeManagerId, setEmployeeManagerId] = useState('');
   const [employeeUserId, setEmployeeUserId] = useState('');
   const [employeeSearchQuery, setEmployeeSearchQuery] = useState('');
+  const [showInactiveEmployees, setShowInactiveEmployees] = useState(false);
 
   // Search state for user override section
   const [searchUserQuery, setSearchUserQuery] = useState('');
@@ -96,11 +97,12 @@ export default function AdminPage() {
     queryFn: () => getUsersByRole('centre_head'),
   });
 
-  // Same query key as OrgHubPage.jsx so an edit here invalidates that page's
-  // cache too, and vice versa — one source of truth for this table's data.
+  // Same query key shape as OrgHubPage.jsx so an edit here invalidates that
+  // page's cache too, and vice versa — one source of truth for this table's
+  // data.
   const { data: orgEmployees, isLoading: orgEmployeesLoading } = useQuery({
-    queryKey: ['org-hub-employees'],
-    queryFn: getOrgHubEmployees,
+    queryKey: ['org-hub-employees', showInactiveEmployees ? 'withInactive' : 'activeOnly'],
+    queryFn: () => getOrgHubEmployees(showInactiveEmployees),
     staleTime: 0,
   });
 
@@ -180,6 +182,15 @@ export default function AdminPage() {
     onSuccess: () => {
       invalidateEmployeeQueries();
       showToast('Employee deactivated successfully');
+    },
+    onError: (err) => showToast(err.response?.data?.error || 'Operation failed', 'error')
+  });
+
+  const reactivateEmployeeMutation = useMutation({
+    mutationFn: (id) => updateOrgHubEmployee(id, { is_active: true }),
+    onSuccess: () => {
+      invalidateEmployeeQueries();
+      showToast('Employee reactivated successfully');
     },
     onError: (err) => showToast(err.response?.data?.error || 'Operation failed', 'error')
   });
@@ -367,8 +378,13 @@ export default function AdminPage() {
     );
   });
 
-  // EmployeePicker expects {id, name, email}; org-hub employees use full_name
-  const employeePickerOptions = (orgEmployees || []).map((e) => ({ id: e.id, name: e.full_name, email: e.email }));
+  // EmployeePicker expects {id, name, email}; org-hub employees use full_name.
+  // Excludes inactive employees regardless of the "Show Inactive" toggle above
+  // — that toggle is for visibility in the table, not for offering a
+  // deactivated person as someone's manager or a CAMS-login link target.
+  const employeePickerOptions = (orgEmployees || [])
+    .filter((e) => e.is_active !== false)
+    .map((e) => ({ id: e.id, name: e.full_name, email: e.email }));
 
   return (
     <div className="space-y-6">
@@ -963,8 +979,8 @@ export default function AdminPage() {
               </button>
             </div>
 
-            <div className="p-6 border-b border-slate-100">
-              <div className="relative max-w-md">
+            <div className="p-6 border-b border-slate-100 flex items-center gap-4 flex-wrap">
+              <div className="relative max-w-md flex-1 min-w-[220px]">
                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
@@ -974,6 +990,15 @@ export default function AdminPage() {
                   className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                 />
               </div>
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 transition-all cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={showInactiveEmployees}
+                  onChange={(e) => setShowInactiveEmployees(e.target.checked)}
+                  className="cursor-pointer"
+                />
+                Show Inactive
+              </label>
             </div>
 
             <div className="overflow-x-auto">
@@ -984,6 +1009,7 @@ export default function AdminPage() {
                     <th className="py-3.5 px-6">Email</th>
                     <th className="py-3.5 px-6">Designation</th>
                     <th className="py-3.5 px-6">Department</th>
+                    <th className="py-3.5 px-6">Centre</th>
                     <th className="py-3.5 px-6">Reports To</th>
                     <th className="py-3.5 px-6">CAMS Login</th>
                     <th className="py-3.5 px-6 text-right">Actions</th>
@@ -992,14 +1018,20 @@ export default function AdminPage() {
                 <tbody className="divide-y divide-slate-100 text-sm">
                   {orgEmployeesLoading ? (
                     <tr>
-                      <td colSpan="7" className="py-8 text-center text-slate-400">Loading employees...</td>
+                      <td colSpan="8" className="py-8 text-center text-slate-400">Loading employees...</td>
                     </tr>
                   ) : filteredOrgEmployees.map((e) => (
-                    <tr key={e.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="py-3.5 px-6 font-semibold text-slate-800">{e.full_name}</td>
+                    <tr key={e.id} className={`hover:bg-slate-50/50 transition-colors ${e.is_active === false ? 'opacity-60' : ''}`}>
+                      <td className="py-3.5 px-6 font-semibold text-slate-800">
+                        {e.full_name}
+                        {e.is_active === false && (
+                          <span className="ml-2 text-[9px] font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-full uppercase align-middle">Inactive</span>
+                        )}
+                      </td>
                       <td className="py-3.5 px-6 text-slate-500 text-xs">{e.email}</td>
                       <td className="py-3.5 px-6 text-slate-500">{e.designation || '—'}</td>
                       <td className="py-3.5 px-6 text-slate-500">{e.department_name || '—'}</td>
+                      <td className="py-3.5 px-6 text-slate-500">{e.centre_name || '—'}</td>
                       <td className="py-3.5 px-6 text-slate-500">
                         {e.manager_name || <span className="text-amber-600 font-semibold">None (root)</span>}
                       </td>
@@ -1017,18 +1049,28 @@ export default function AdminPage() {
                         >
                           <Edit2 size={14} />
                         </button>
-                        <button
-                          onClick={() => { if (confirm(`Deactivate ${e.full_name}? They'll disappear from the Organization Hub and assignment lists.`)) deactivateEmployeeMutation.mutate(e.id); }}
-                          className="p-1.5 text-slate-400 hover:text-red-650 hover:bg-red-50 rounded-lg cursor-pointer transition-colors inline-block"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        {e.is_active === false ? (
+                          <button
+                            onClick={() => { if (confirm(`Reactivate ${e.full_name}? They'll reappear in the Organization Hub and assignment lists.`)) reactivateEmployeeMutation.mutate(e.id); }}
+                            title="Reactivate"
+                            className="p-1.5 text-slate-400 hover:text-emerald-650 hover:bg-emerald-50 rounded-lg cursor-pointer transition-colors inline-block"
+                          >
+                            <RefreshCw size={14} />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => { if (confirm(`Deactivate ${e.full_name}? They'll disappear from the Organization Hub and assignment lists.`)) deactivateEmployeeMutation.mutate(e.id); }}
+                            className="p-1.5 text-slate-400 hover:text-red-650 hover:bg-red-50 rounded-lg cursor-pointer transition-colors inline-block"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
                   {!orgEmployeesLoading && !filteredOrgEmployees.length && (
                     <tr>
-                      <td colSpan="7" className="py-8 text-center text-slate-400">No employees found.</td>
+                      <td colSpan="8" className="py-8 text-center text-slate-400">No employees found.</td>
                     </tr>
                   )}
                 </tbody>

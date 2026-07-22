@@ -29,7 +29,7 @@ export const resolveTaskReview = (taskId, reviewId) => api.patch(`/api/tasks/${t
 export const getAllCentres = () => api.get('/api/centres').then((res) => res.data);
 
 // Organization Hub API
-export const getOrgHubEmployees = () => api.get('/api/org-hub/employees').then((res) => res.data);
+export const getOrgHubEmployees = (includeInactive) => api.get('/api/org-hub/employees', { params: includeInactive ? { includeInactive: true } : {} }).then((res) => res.data);
 export const getOrgHubDepartments = () => api.get('/api/org-hub/departments').then((res) => res.data);
 export const createOrgHubEmployee = (data) => api.post('/api/org-hub/employees', data).then((res) => res.data);
 export const updateOrgHubEmployee = (id, data) => api.patch(`/api/org-hub/employees/${id}`, data).then((res) => res.data);

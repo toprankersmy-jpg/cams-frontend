@@ -1,9 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getOrgHubEmployees, getOrgHubDepartments } from '../api';
-import { Search, ChevronRight, Mail, Users2, Network } from 'lucide-react';
+import { Search, ChevronRight, Mail, Users2, Network, Building2 } from 'lucide-react';
 
-const EMPTY_FILTERS = { department: '', manager: '', city: '' };
+const EMPTY_FILTERS = { department: '', manager: '', city: '', centre: '' };
 
 function initialsOf(name) {
   if (!name) return '?';
@@ -19,10 +19,11 @@ export default function OrgHubPage() {
   const [expandedGroups, setExpandedGroups] = useState({});
   const [expandedCities, setExpandedCities] = useState({});
   const [selection, setSelection] = useState({ type: null, id: null });
+  const [showInactive, setShowInactive] = useState(false);
 
   const { data: employees, isLoading: employeesLoading, error: employeesError } = useQuery({
-    queryKey: ['org-hub-employees'],
-    queryFn: getOrgHubEmployees,
+    queryKey: ['org-hub-employees', showInactive ? 'withInactive' : 'activeOnly'],
+    queryFn: () => getOrgHubEmployees(showInactive),
     retry: 1,
   });
   const { data: departments, isLoading: departmentsLoading } = useQuery({
@@ -77,6 +78,10 @@ export default function OrgHubPage() {
     () => Array.from(new Set(emps.filter((e) => e.city).map((e) => e.city))).sort(),
     [emps]
   );
+  const centreOptions = useMemo(
+    () => Array.from(new Set(emps.filter((e) => e.centre_name).map((e) => e.centre_name))).sort(),
+    [emps]
+  );
   const groupOptions = useMemo(
     () => Array.from(new Set(emps.map((e) => e.group_name).filter(Boolean))).sort(),
     [emps]
@@ -87,7 +92,7 @@ export default function OrgHubPage() {
     return m;
   }, [depts]);
 
-  const filtersActive = !!(search.trim() || filters.department || filters.manager || filters.city);
+  const filtersActive = !!(search.trim() || filters.department || filters.manager || filters.city || filters.centre);
 
   const filteredEmployees = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -95,6 +100,7 @@ export default function OrgHubPage() {
       if (filters.department && e.group_name !== filters.department) return false;
       if (filters.manager && e.manager_name !== filters.manager) return false;
       if (filters.city && e.city !== filters.city) return false;
+      if (filters.centre && e.centre_name !== filters.centre) return false;
       return true;
     };
     const matchesSearch = (e) =>
@@ -102,7 +108,8 @@ export default function OrgHubPage() {
       (e.department_name || '').toLowerCase().includes(q) ||
       (e.designation || '').toLowerCase().includes(q) ||
       (e.email || '').toLowerCase().includes(q) ||
-      (e.manager_name || '').toLowerCase().includes(q);
+      (e.manager_name || '').toLowerCase().includes(q) ||
+      (e.centre_name || '').toLowerCase().includes(q);
     return emps.filter((e) => passesFilters(e) && (!q || matchesSearch(e)));
   }, [emps, search, filters]);
 
@@ -262,12 +269,29 @@ export default function OrgHubPage() {
             <option value="">Location</option>
             {cityOptions.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
+          <select
+            value={filters.centre}
+            onChange={(e) => setFilters((f) => ({ ...f, centre: e.target.value }))}
+            className="px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-650 font-semibold"
+          >
+            <option value="">Centre</option>
+            {centreOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
           <button
             onClick={resetFilters}
             className="text-xs font-semibold text-slate-500 hover:text-slate-700 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 transition-all"
           >
             Reset Filters
           </button>
+          <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 transition-all cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={showInactive}
+              onChange={(e) => setShowInactive(e.target.checked)}
+              className="cursor-pointer"
+            />
+            Show Inactive
+          </label>
           <div className="text-xs text-slate-400 font-medium ml-auto">
             <span className="text-slate-700 font-bold">{filteredEmployees.length}</span> of{' '}
             <span className="text-slate-700 font-bold">{emps.length}</span> employees
@@ -312,10 +336,13 @@ export default function OrgHubPage() {
                     isSelected ? 'bg-indigo-50 border-indigo-500' : 'border-transparent hover:bg-slate-50'
                   }`}
                 >
-                  <span className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 text-[10px] font-bold flex items-center justify-center shrink-0">
+                  <span className={`w-6 h-6 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 ${row.emp.is_active === false ? 'bg-slate-100 text-slate-400' : 'bg-slate-200 text-slate-700'}`}>
                     {initialsOf(row.emp.full_name)}
                   </span>
-                  <span className="text-xs truncate">{row.emp.full_name}</span>
+                  <span className={`text-xs truncate ${row.emp.is_active === false ? 'text-slate-400 italic' : ''}`}>{row.emp.full_name}</span>
+                  {row.emp.is_active === false && (
+                    <span className="text-[9px] font-bold text-slate-400 uppercase shrink-0">Inactive</span>
+                  )}
                 </div>
               );
             })}
@@ -412,7 +439,12 @@ export default function OrgHubPage() {
           )}
           {selectedEmployee && (
             <div className="space-y-3.5">
-              <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Employee</div>
+              <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500 flex items-center gap-2">
+                <span>Employee</span>
+                {selectedEmployee.is_active === false && (
+                  <span className="text-[9px] font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-full normal-case tracking-normal">Inactive</span>
+                )}
+              </div>
               <div className="flex items-center gap-3">
                 <span className="w-12 h-12 rounded-full bg-slate-200 text-slate-700 text-base font-bold flex items-center justify-center shrink-0">
                   {initialsOf(selectedEmployee.full_name)}
@@ -422,11 +454,18 @@ export default function OrgHubPage() {
                   <div className="text-xs text-slate-500 truncate">{selectedEmployee.designation}</div>
                 </div>
               </div>
-              {selectedEmployee.department_name && (
-                <span className="inline-block text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full w-fit">
-                  {selectedEmployee.department_name}
-                </span>
-              )}
+              <div className="flex flex-wrap gap-1.5">
+                {selectedEmployee.department_name && (
+                  <span className="inline-block text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full w-fit">
+                    {selectedEmployee.department_name}
+                  </span>
+                )}
+                {selectedEmployee.centre_name && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-indigo-50 text-indigo-650 px-2 py-0.5 rounded-full w-fit">
+                    <Building2 size={10} /> {selectedEmployee.centre_name}
+                  </span>
+                )}
+              </div>
               {selectedEmployee.manager_id && (
                 <div className="text-xs text-slate-500">
                   Reports to{' '}
