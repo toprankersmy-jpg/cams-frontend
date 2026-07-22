@@ -1,10 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '../context/AuthContext';
 import { getAllTasks, getAllCentres } from '../api';
 import { BarChart3, Clock, CheckCircle2, AlertCircle, ShieldAlert, Building } from 'lucide-react';
-import { getTaskLocationLabel } from '../utils/taskDisplay';
+import { getTaskLocationLabel, isMyTask } from '../utils/taskDisplay';
 
 export default function ReportsPage() {
+  const { user } = useAuth();
+  // Reports is leadership/admin-only (page:reports), and previously always
+  // showed the whole company by default with no way to narrow it — same
+  // "My Tasks/Everyone" toggle as Dashboard/Tasks/Kanban, default "mine".
+  const [scope, setScope] = useState('mine');
+
   // Query all tasks
   const { data: tasks, isLoading: tasksLoading, error: tasksError } = useQuery({
     queryKey: ['tasks', 'all'],
@@ -19,7 +26,8 @@ export default function ReportsPage() {
     retry: 1,
   });
 
-  const taskList = Array.isArray(tasks) ? tasks : (tasks?.tasks || tasks?.data || []);
+  const allTaskList = Array.isArray(tasks) ? tasks : (tasks?.tasks || tasks?.data || []);
+  const taskList = scope === 'mine' ? allTaskList.filter((t) => isMyTask(t, user?.id)) : allTaskList;
   const centreList = Array.isArray(centres) ? centres : (centres?.centres || centres?.data || []);
 
   const isLoading = tasksLoading || centresLoading;
@@ -137,9 +145,29 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Reports & Analytics</h1>
-        <p className="text-sm text-slate-500 mt-1">Operational summary metrics across TopRankers offline network</p>
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Reports & Analytics</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            {scope === 'mine' ? 'Metrics for tasks you initiated, manage, or are directly assigned' : 'Operational summary metrics across TopRankers offline network'}
+          </p>
+        </div>
+        <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
+          <button
+            type="button"
+            onClick={() => setScope('mine')}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${scope === 'mine' ? 'bg-white text-indigo-650 shadow-sm' : 'text-slate-500'}`}
+          >
+            My Tasks
+          </button>
+          <button
+            type="button"
+            onClick={() => setScope('all')}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${scope === 'all' ? 'bg-white text-indigo-650 shadow-sm' : 'text-slate-500'}`}
+          >
+            Everyone
+          </button>
+        </div>
       </div>
 
       {isError && (

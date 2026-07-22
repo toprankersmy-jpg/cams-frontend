@@ -83,3 +83,20 @@ export const getTaskLocationLabel = (t) => {
   return 'All Centres';
 };
 
+/**
+ * "Mine" for a company-wide viewer (leadership) — tasks they personally
+ * initiated, are the direct assignee of, manage as assigned_manager, or
+ * approved as the manager. Same predicate TasksPage.jsx's "My Tasks" scope
+ * already uses; shared here so Dashboard/Kanban/Reports scope identically
+ * instead of each re-deriving their own definition of "mine".
+ */
+export const isMyTask = (t, userId) => {
+  if (!t || !userId) return false;
+  return (
+    t.initiated_by?.id === userId ||
+    t.assigned_person_id === userId ||
+    t.assigned_manager === userId ||
+    t.approved_by_manager?.id === userId
+  );
+};
+

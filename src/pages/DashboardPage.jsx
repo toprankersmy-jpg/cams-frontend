@@ -20,7 +20,7 @@ import {
   X,
   Plus
 } from 'lucide-react';
-import { getPriorityBadge, getStatusBadge, getTaskDueDate, getTaskLocationLabel } from '../utils/taskDisplay';
+import { getPriorityBadge, getStatusBadge, getTaskDueDate, getTaskLocationLabel, isMyTask } from '../utils/taskDisplay';
 import TaskDrawer from '../components/TaskDrawer';
 import ManagerApprovalBlock from '../components/ManagerApprovalBlock';
 
@@ -30,6 +30,13 @@ export default function DashboardPage() {
   const queryClient = useQueryClient();
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [managerPriorities, setManagerPriorities] = useState({});
+  // Leadership's getMyTasks is unscoped (same shape as everyone's data) by
+  // backend design, so their dashboard used to show every task in the
+  // company by default. Default to "My Tasks" here too, matching the toggle
+  // already shipped on TasksPage.jsx, so a leadership user's own briefing
+  // isn't buried in company-wide data unless they ask for it.
+  const canToggleScope = user?.role === 'leadership';
+  const [scope, setScope] = useState('mine');
 
   // Fetch stats and tasks
   const { data: stats, isLoading: statsLoading, error: statsError } = useQuery({
@@ -83,15 +90,29 @@ export default function DashboardPage() {
   };
 
   const isBackendDown = !!(statsError || tasksError);
-  
-  const activeStats = stats ? {
-    open: (stats.active_in_ch_basket || 0) + (stats.acknowledged || 0) + (stats.in_progress || 0) + (stats.blocked || 0) + (stats.reopened || 0),
-    overdue: stats.overdue || 0,
-    completed: stats.completed || 0,
-    pendingApproval: stats.pending_manager_approval || 0
-  } : mockStats;
 
-  const activeTasks = Array.isArray(tasks) ? tasks : (tasks?.tasks || tasks?.data || []);
+  const allTasks = Array.isArray(tasks) ? tasks : (tasks?.tasks || tasks?.data || []);
+  const isMineScope = canToggleScope && scope === 'mine';
+  const activeTasks = isMineScope ? allTasks.filter((t) => isMyTask(t, user?.id)) : allTasks;
+
+  // In "My Tasks" scope, the stats cards must reflect the same filtered set
+  // shown below them — the separate getTaskStats() endpoint is company-wide
+  // for leadership (same "zero filter" backend behavior as getMyTasks), so
+  // it can't be used as-is here without desyncing the cards from the table.
+  const OPEN_STATUSES = ['active_in_ch_basket', 'acknowledged', 'in_progress', 'blocked', 'reopened'];
+  const activeStats = isMineScope
+    ? {
+        open: activeTasks.filter((t) => OPEN_STATUSES.includes(t.status)).length,
+        overdue: activeTasks.filter((t) => t.is_overdue).length,
+        completed: activeTasks.filter((t) => t.status === 'completed').length,
+        pendingApproval: activeTasks.filter((t) => t.status === 'pending_manager_approval').length,
+      }
+    : (stats ? {
+        open: (stats.active_in_ch_basket || 0) + (stats.acknowledged || 0) + (stats.in_progress || 0) + (stats.blocked || 0) + (stats.reopened || 0),
+        overdue: stats.overdue || 0,
+        completed: stats.completed || 0,
+        pendingApproval: stats.pending_manager_approval || 0
+      } : mockStats);
 
   const renderHeading = () => {
     const role = user?.role || 'hq_executive';
@@ -145,7 +166,27 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8 relative">
       {/* Title */}
-      {renderHeading()}
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        {renderHeading()}
+        {canToggleScope && (
+          <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setScope('mine')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${scope === 'mine' ? 'bg-white text-indigo-650 shadow-sm' : 'text-slate-500'}`}
+            >
+              My Tasks
+            </button>
+            <button
+              type="button"
+              onClick={() => setScope('all')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${scope === 'all' ? 'bg-white text-indigo-650 shadow-sm' : 'text-slate-500'}`}
+            >
+              Everyone
+            </button>
+          </div>
+        )}
+      </div>
 
       {isBackendDown && (
         <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm px-4 py-3 rounded-xl flex items-center gap-3">
@@ -201,8 +242,9 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* RM-wise Summary (Leadership) */}
-      {user?.role === 'leadership' && rmSummary.length > 0 && (
+      {/* RM-wise Summary (Leadership) — company-wide oversight panel, only
+          meaningful in "Everyone" scope; "My Tasks" is a personal view. */}
+      {user?.role === 'leadership' && scope === 'all' && rmSummary.length > 0 && (
         <div className="space-y-3">
           <h3 className="font-bold text-slate-900 text-lg">RM-wise Summary</h3>
           <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
@@ -365,7 +407,9 @@ export default function DashboardPage() {
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <h3 className="font-bold text-slate-900 text-base">Recent Tasks</h3>
-          <span className="text-xs text-slate-400 font-medium">Showing latest active work items</span>
+          <span className="text-xs text-slate-400 font-medium">
+            {isMineScope ? 'Tasks you initiated, manage, or are directly assigned' : 'Showing latest active work items'}
+          </span>
         </div>
 
         {/* Tasks Table */}

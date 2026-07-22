@@ -5,7 +5,7 @@ import { useToast } from '../context/ToastContext';
 import { useLocation } from 'react-router-dom';
 import { getMyTasks, getAllTasks, getAllCentres, batchApproveRm } from '../api';
 import { Search, ChevronRight, Loader2, Building, Users } from 'lucide-react';
-import { getPriorityBadge, getStatusBadge, getTaskDueDate, getTaskLocationLabel } from '../utils/taskDisplay';
+import { getPriorityBadge, getStatusBadge, getTaskDueDate, getTaskLocationLabel, isMyTask } from '../utils/taskDisplay';
 import TaskDrawer from '../components/TaskDrawer';
 
 // RM-only panel: groups pending_rm_approval tasks (spawned from an
@@ -184,12 +184,7 @@ export default function TasksPage() {
   // are the direct assignee of, or manage as the assigned_manager — not the
   // whole company.
   const taskList = (canSeeAll && scope === 'mine')
-    ? allTaskList.filter((t) =>
-        t.initiated_by?.id === user?.id ||
-        t.assigned_person_id === user?.id ||
-        t.assigned_manager === user?.id ||
-        t.approved_by_manager?.id === user?.id
-      )
+    ? allTaskList.filter((t) => isMyTask(t, user?.id))
     : allTaskList;
 
   const filtered = taskList.filter((t) => {

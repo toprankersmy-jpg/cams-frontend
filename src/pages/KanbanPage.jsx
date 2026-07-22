@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
 import { getMyTasks, getAllTasks } from '../api';
-import { getPriorityBadge, getStatusBadge } from '../utils/taskDisplay';
+import { getPriorityBadge, getStatusBadge, isMyTask } from '../utils/taskDisplay';
 import TaskDrawer from '../components/TaskDrawer';
 import { Search, ListTodo, Filter, Building } from 'lucide-react';
 
@@ -18,6 +18,12 @@ export default function KanbanPage() {
   // plus any task directly assigned to them, rm no longer needs the
   // unscoped fetch.
   const canSeeAll = ['leadership', 'hq_manager'].includes(user?.role);
+  // Leadership's board defaults to their own tasks, same "My Tasks/Everyone"
+  // toggle already shipped on TasksPage.jsx/DashboardPage.jsx — otherwise
+  // it's every task in the company on first load. hq_manager keeps its
+  // existing unscoped board (not part of this toggle, unchanged behavior).
+  const canToggleScope = user?.role === 'leadership';
+  const [scope, setScope] = useState('mine');
 
   // Fetch tasks
   const { data: tasks, isLoading, error } = useQuery({
@@ -27,7 +33,10 @@ export default function KanbanPage() {
     refetchInterval: 4000, // keep the board live without a manual refresh
   });
 
-  const taskList = Array.isArray(tasks) ? tasks : (tasks?.tasks || tasks?.data || []);
+  const allTaskList = Array.isArray(tasks) ? tasks : (tasks?.tasks || tasks?.data || []);
+  const taskList = (canToggleScope && scope === 'mine')
+    ? allTaskList.filter((t) => isMyTask(t, user?.id))
+    : allTaskList;
 
   // Filter tasks client-side
   const filteredTasks = taskList.filter((t) => {
@@ -62,13 +71,33 @@ export default function KanbanPage() {
           <p className="text-sm text-slate-500 mt-1">Track tasks and status workflow visually</p>
         </div>
 
+        <div className="flex flex-wrap gap-2 items-center">
+        {canToggleScope && (
+          <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setScope('mine')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${scope === 'mine' ? 'bg-white text-indigo-650 shadow-sm' : 'text-slate-500'}`}
+            >
+              My Tasks
+            </button>
+            <button
+              type="button"
+              onClick={() => setScope('all')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${scope === 'all' ? 'bg-white text-indigo-650 shadow-sm' : 'text-slate-500'}`}
+            >
+              Everyone
+            </button>
+          </div>
+        )}
+
         {/* Filters */}
         <div className="flex flex-wrap gap-2 items-center bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-1 text-slate-400 text-xs px-2 font-semibold font-mono uppercase">
             <Filter size={13} />
             <span>Filters</span>
           </div>
-          
+
           <select
             value={priorityFilter}
             onChange={(e) => setPriorityFilter(e.target.value)}
@@ -94,6 +123,7 @@ export default function KanbanPage() {
               <option key={d} value={d}>{d}</option>
             ))}
           </select>
+        </div>
         </div>
       </div>
 
